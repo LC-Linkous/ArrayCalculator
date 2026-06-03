@@ -79,6 +79,10 @@ ArrayCalculator/
 │   ├── array_calculator.py
 │   ├── array_common.py
 │   ├── binomial_array.py
+│   ├── binomial_array.py
+│   ├── binomial_array.py
+│   ├── binomial_array.py
+│   ├── binomial_array.py
 │   └── dolph_tschebyscheff.py
 └── tests/
     ├── __init__.py
