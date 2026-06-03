@@ -3,6 +3,16 @@ in progress AntennaCAT compatible array calculator.
 
 ## NOT STABLE, NOT COMPLETE
 
+TODO:
+* Add links and references
+* Update links and references in the text using the [1] placeholder (not everything is from the Balanis book)
+* Update table of contents
+* Finish adding the arrays from lecture material
+* Upload lecture documents for references
+* Add in the images to the README for the output combinations
+* Set up tests 
+
+
 
 This project is a CLI-based linear antenna array synthesis (sort of, full functionality in progress) tool. 
 It is written as an AntennaCAT [ADD LINK] compatible tool, similar to [ADD LINK] [AntennaCalculator]().
@@ -72,13 +82,37 @@ pytest
 
 
 
+## Building and Installing
+
+The project builds with [uv](https://docs.astral.sh/uv/). To build a local
+wheel and install it into your environment:
+
+```python
+# install uv
+pip install uv
+# navigate to the ArrayCalculator directory
+cd .\ArrayCalculator
+# build the package
+# a 'dist' directory should be created in ArrayCalculator
+uv build
+# install the package locally (matches whatever version was just built)
+uv pip install dist/arraycalculator-*.whl
+```
+
+This installs the array modules so they can be imported directly (e.g.
+`from binomial_array import BinomialArray`). The calculator is still run as a
+script -- `python src/array_calculator.py binomial_array -N 6 -f 3e9` -- since
+no console entry point is configured.
+
+
+
 ## File Structure
 
 ```python
 
 ArrayCalculator/
 ├── .python-version
-├── pyproject.toml (TODO)
+├── pyproject.toml
 ├── README.md
 ├── LICENSE
 ├── .gitignore
@@ -232,6 +266,29 @@ usage: array_calculator.py taylor_array [common args]
 
 ## Examples
 
+Each synthesis method is its own subcommand. The examples below show
+representative output; element amplitudes, HPBW, and directivity are printed
+for every array, with method-specific extras (sidelobe level, voltage ratio,
+etc.) where they apply. Add `--verbose` to any command for the raw,
+un-normalized amplitudes and intermediate quantities.
+
+**Uniform array (reference case), 10 elements at 3 GHz:**
+```
+python array_calculator.py uniform_array -N 10 -f 3e9
+
+[*] N = 10
+[*] Amplitudes (normalized) = [1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+[*] Wavelength = 10.00 centimeter
+[*] Element spacing d = 5.00 centimeter
+[*] HPBW = 10.21 deg
+[*] Directivity = 10
+[*] Directivity = 10.00 dB
+```
+
+At d = lambda/2 the uniform array's directivity is simply N, and its first
+sidelobe sits at the classic -13.2 dB -- the narrowest beam and highest
+sidelobes of the distributions here, making it the natural baseline.
+
 **Binomial array, 6 elements at 3 GHz:**
 ```
 python array_calculator.py binomial_array -N 6 -f 3e9 --verbose
@@ -273,6 +330,66 @@ python array_calculator.py triangular_array -N 10 -f 3e9
 [*] Directivity = 9.13 dB
 ```
 
+**Taylor n-bar array, 20 elements, -30 dB near-in sidelobes, nbar = 6:**
+```
+python array_calculator.py taylor_array -N 20 -sll 30 -nbar 6 --verbose
+
+[*] N = 20
+[*] Sidelobe level = 30.00 dB
+[*] nbar = 6
+[*] R (voltage ratio) = 31.62
+[*] sigma = 1.06
+[*] Amplitudes (raw) = [0.414, 0.468, 0.586, 0.757, 0.945, 1.119, 1.273, 1.403, 1.495, 1.541, 1.541, 1.495, 1.403, 1.273, 1.119, 0.945, 0.757, 0.586, 0.468, 0.414]
+[*] Amplitudes (normalized) = [0.269, 0.304, 0.380, 0.492, 0.613, 0.726, 0.826, 0.910, 0.970, 1.000, 1.000, 0.970, 0.910, 0.826, 0.726, 0.613, 0.492, 0.380, 0.304, 0.269]
+[*] Element spacing d = 0.50 lambda
+[*] HPBW = 6.42 deg
+[*] Directivity = 17.17
+[*] Directivity = 12.35 dB
+```
+
+Unlike Dolph-Tschebyscheff, whose sidelobes are all equal, the Taylor
+distribution holds only the first `nbar` sidelobes near the design level and
+lets the rest decay -- trading a slightly wider beam for better aperture
+efficiency.
+
+**Hamming taper, 16 elements:**
+```
+python array_calculator.py hamming_array -N 16
+
+[*] N = 16
+[*] Amplitudes (normalized) = [0.090, 0.159, 0.287, 0.454, 0.635, 0.803, 0.931, 1.000, 1.000, 0.931, 0.803, 0.635, 0.454, 0.287, 0.159, 0.090]
+[*] Element spacing d = 0.50 lambda
+[*] HPBW = 9.35 deg
+[*] Directivity = 11.74
+[*] Directivity = 10.70 dB
+```
+
+**Blackman taper, 16 elements:**
+```
+python array_calculator.py blackman_array -N 16
+
+[*] N = 16
+[*] Amplitudes (normalized) = [0.004, 0.035, 0.113, 0.253, 0.451, 0.678, 0.880, 1.000, 1.000, 0.880, 0.678, 0.451, 0.253, 0.113, 0.035, 0.004]
+[*] Element spacing d = 0.50 lambda
+[*] HPBW = 11.80 deg
+[*] Directivity = 9.27
+[*] Directivity = 9.67 dB
+```
+
+The remaining tapers -- `cosine_array`, `cosine_squared_array`, and
+`hann_array` -- take the same arguments and print output in the same form.
+(Cosine-squared and Hann are the same distribution and produce identical
+results; see their module docstrings.)
+
+**Return variables instead of printing** (for use as a library):
+```
+python array_calculator.py binomial_array -N 6 --variable_return
+```
+
+With `--variable_return` the calculator suppresses printing and the
+`ArrayCalculator` object exposes the computed values via `getCalcedParams()`
+-- handy when driving the synthesis from other code rather than the terminal.
+
 
 **Export the pattern to CSV and steer the beam to 60 degrees:**
 ```
@@ -313,6 +430,14 @@ The polar view shows the 0-180 deg half-plane mirrored about boresight (the
 beam points up at 90 deg); the rectangular view plots normalized |AF| in dB
 against theta. When a sidelobe level applies (Dolph, Taylor), it is drawn as a
 dashed reference line.
+
+<!-- Add output images below. Suggested captions: -->
+
+<!-- Dolph-Tschebyscheff, both views -->
+![Dolph-Tschebyscheff radiation pattern, polar and rectangular](media/dolph_both.png)
+
+<!-- A low-sidelobe taper, polar -->
+![Blackman radiation pattern](media/blackman_polar.png)
 
 
 ## Tests
