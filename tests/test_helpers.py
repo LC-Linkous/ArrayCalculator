@@ -34,6 +34,7 @@ def make_args(**kwargs):
         elements=None, frequency=None, spacing=0.5, scan=90.0,
         unit="centimeter", csv=None, plot=False, verbose=False,
         variable_return=False, sidelobe_level=None, norm="edge",
+        plot_style="both", save=None,
     )
     defaults.update(kwargs)
     return SimpleNamespace(**defaults)
