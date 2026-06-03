@@ -95,8 +95,54 @@ class ArrayCommon:
                 w.writerow(["{:.3f}".format(t), "{:.6f}".format(a), "{:.4f}".format(d)])
         print("[*] Pattern CSV generated: " + filename)
 
-    # --- plotting (future expansion; matplotlib imported lazily) -------
-    def plot_pattern(self, amps, title="Array Factor", sll_db=None):
+    # --- plotting (matplotlib imported lazily) ------------------------
+    # Color/style constants shared by both plot styles.
+    _ACCENT = "#1f6feb"   # main beam trace
+    _SLLCOL = "#d1495b"   # sidelobe-level reference
+    _GRID = "#c9ced6"     # grid lines
+
+    def _polar_axes(self, ax, theta, af_db, sll_db, floor):
+        # A linear array's pattern is swept over theta in [0, 180] and is
+        # symmetric about the boresight axis. We mirror the sweep to the
+        # lower half so the dial shows the true symmetry with the beam
+        # pointing up (90 deg physical -> top), and only draw the
+        # meaningful 0..180 half-plane rather than a full empty circle.
+        th = np.radians(theta)
+        ax.plot(th, af_db, color=self._ACCENT, lw=1.8, zorder=3)
+        ax.plot(-th, af_db, color=self._ACCENT, lw=1.8, zorder=3)
+        ax.set_theta_zero_location("E")
+        ax.set_theta_direction(1)
+        ax.set_thetamin(0)
+        ax.set_thetamax(180)
+        ax.set_rlabel_position(0)          # dB labels along the 0 deg axis
+        ax.set_ylim(floor, 0)
+        ax.set_rticks(list(range(floor, 1, 10)))
+        ax.grid(True, color=self._GRID, lw=0.6)
+        if sll_db is not None:
+            lbl = "SLL %g dB" % -abs(sll_db)
+            ax.plot(th, np.full_like(th, -abs(sll_db)), color=self._SLLCOL,
+                    ls="--", lw=1.0, label=lbl)
+            ax.plot(-th, np.full_like(th, -abs(sll_db)),
+                    color=self._SLLCOL, ls="--", lw=1.0)
+            ax.legend(loc="lower center", fontsize=8,
+                      bbox_to_anchor=(0.5, -0.12), frameon=False)
+
+    def _rect_axes(self, ax, theta, af_db, sll_db, floor):
+        ax.plot(theta, af_db, color=self._ACCENT, lw=1.8, zorder=3, label="AF")
+        ax.set_xlim(0, 180)
+        ax.set_ylim(floor, 1)
+        ax.set_xticks(range(0, 181, 30))
+        ax.set_xlabel("theta (deg)")
+        ax.set_ylabel("normalized |AF| (dB)")
+        ax.grid(True, color=self._GRID, lw=0.6)
+        ax.axhline(0, color="#888888", lw=0.6)
+        if sll_db is not None:
+            ax.axhline(-abs(sll_db), color=self._SLLCOL, ls="--", lw=1.0,
+                       label="SLL %g dB" % -abs(sll_db))
+        ax.legend(loc="upper right", fontsize=8)
+
+    def plot_pattern(self, amps, title="Array Factor", sll_db=None,
+                     style=None, floor=-60, savepath=None):
         # Lazy import keeps matplotlib an optional dependency: the core
         # calculator runs without it installed unless --plot is used.
         try:
@@ -105,16 +151,33 @@ class ArrayCommon:
             print("[*] matplotlib not installed; skipping plot. "
                   "Install it or use --csv for pattern data.")
             return
+        # Fall back to the CLI flags when the caller doesn't override them,
+        # so --plot-style and --save work for every array without each
+        # driver having to forward them explicitly.
+        if style is None:
+            style = getattr(self.args, "plot_style", "both") or "both"
+        if savepath is None:
+            savepath = getattr(self.args, "save", None)
         theta, af_norm, af_db = self.pattern_sweep(amps)
-        af_db = np.clip(af_db, -60, 0)
-        ax = plt.subplot(111, projection="polar")
-        ax.plot(np.radians(theta), af_db)
-        ax.set_theta_zero_location("N")
-        ax.set_theta_direction(-1)
-        ax.set_rlabel_position(90)
-        ax.set_ylim(-60, 0)
-        if sll_db is not None:
-            ax.plot(np.radians(theta), np.full_like(theta, -abs(sll_db)),
-                    linestyle="--", linewidth=0.8)
-        ax.set_title(title)
-        plt.show()
+        af_db = np.clip(af_db, floor, 0)
+
+        if style == "polar":
+            fig = plt.figure(figsize=(5.4, 5.4))
+            self._polar_axes(fig.add_subplot(111, projection="polar"),
+                             theta, af_db, sll_db, floor)
+        elif style == "rect":
+            fig = plt.figure(figsize=(6.6, 4.2))
+            self._rect_axes(fig.add_subplot(111), theta, af_db, sll_db, floor)
+        else:  # both
+            fig = plt.figure(figsize=(10.6, 4.8))
+            self._polar_axes(fig.add_subplot(121, projection="polar"),
+                             theta, af_db, sll_db, floor)
+            self._rect_axes(fig.add_subplot(122), theta, af_db, sll_db, floor)
+
+        fig.suptitle(title, fontsize=12)
+        fig.tight_layout()
+        if savepath is not None:
+            fig.savefig(savepath, dpi=110, bbox_inches="tight")
+            plt.close(fig)
+        else:
+            plt.show()
