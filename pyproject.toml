@@ -1,0 +1,44 @@
+[project]
+name = "arraycalculator"
+version = "0.1.0"
+description = "AntennaCAT-compatible linear antenna array synthesis calculator"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pint",
+]
+
+[project.optional-dependencies]
+# matplotlib is only needed for the --plot / --save flags; the core
+# calculator (synthesis, CSV export) runs without it.
+plot = [
+    "matplotlib",
+]
+
+[dependency-groups]
+# Dev tooling, installed by `uv sync` but not shipped to consumers.
+dev = [
+    "pytest",
+    "matplotlib",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# The array modules live flat inside src/ (e.g. src/binomial_array.py)
+# rather than in a nested package folder, and they import each other
+# flat (e.g. `from binomial_array import BinomialArray`). Pointing the
+# wheel build at src/ as its source root keeps those modules importable
+# as top-level names without changing any import statements.
+sources = ["src"]
+include = ["src/*.py"]
+
+[tool.pytest.ini_options]
+# Put src/ on the import path so `pytest` works from the project root
+# without relying on tests/conftest.py. The conftest still works too;
+# this just makes the configuration explicit and project-wide.
+pythonpath = ["src"]
+testpaths = ["tests"]
