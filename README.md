@@ -3,15 +3,6 @@ in progress AntennaCAT compatible array calculator.
 
 ## NOT STABLE, NOT COMPLETE
 
-TODO:
-* Add links and references
-* Update links and references in the text using the [1] placeholder (not everything is from the Balanis book)
-* Upload lecture documents for references
-* Add in the images to the README for the output combinations
-* Fill in the "Other program integration" example
-* Tune Woodward-Lawson defaults against worked teaching examples
-
-
 
 This project is a CLI-based linear antenna array synthesis (sort of, full functionality in progress) tool. 
 It is written as an [AntennaCAT] (https://github.com/LC-Linkous/AntennaCalculationAutotuningTool) compatible tool, similar to the CLI interface of the [AntennaCalculator](https://github.com/Dollarhyde/AntennaCalculator).
@@ -52,7 +43,7 @@ Supported outputs:
 
 
 
-The synthesis methods are based on the standard formulations in [1] and [2]. The
+The synthesis methods are based on the standard formulations (see [references](#references)). The
 parametric designs (Dolph-Tschebyscheff, Taylor, Villeneuve) are verified
 numerically to place their pattern sidelobes at the requested level, and the
 Woodward-Lawson designs are checked to approximate the requested pattern shape.
@@ -274,10 +265,217 @@ of these.
                         (default center; dolph_tschebyscheff defaults to edge)
 ```
 
-### Other program integration
+### CLI vs Scripting Comparison
 
 ADD EXAMPLE HERE of the function calls in the CLI format, but just directly from python scripts
 This is only typically used when integrating the calculators into other programs without losing the CLI functionality
+but there's also some relevance because it opens up the calculator to scripting options. TODO, eventually. 
+
+    # ==================================================================
+    # CLI EXAMPLES  (each shown two ways: as a shell command, and as the
+    # equivalent scripted ArrayCalculator call for automation/screenshots)
+    # ------------------------------------------------------------------
+    # The scripted form mirrors the __main__ block: build ArrayCalculator
+    # with an argv list, then call .main(.getArgs()). Add '--variable_return'
+    # to suppress printing and collect the results via .getCalcedParams().
+    #
+    # NOTE on return shapes (what getCalcedParams() gives back):
+    #   most arrays         -> (amps, hpbw_deg, directivity_db)
+    #   dolph_tschebyscheff -> (amps, R, z0, directivity_db)      # 4-tuple
+    #   woodward_lawson     -> (amps, phase_deg, directivity_db)  # phase, not HPBW
+    #   evaluate            -> a results dict (not a tuple)
+    # ==================================================================
+
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+shell = ArrayCalculator(['uniform_array', '-N', '10', '-f', '3e9'])
+shell.main(shell.getArgs())
+```
+Results:
+
+```bash
+
+```
+    
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    # --- Binomial array, verbose (also prints raw Pascal-triangle amplitudes) ---
+    # python array_calculator.py binomial_array -N 6 -f 3e9 --verbose
+    # shell = ArrayCalculator(['binomial_array', '-N', '6', '-f', '3e9', '--verbose'])
+    # shell.main(shell.getArgs())
+    
+```
+Results:
+
+```bash
+
+```
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    # --- Dolph-Tschebyscheff, -26 dB sidelobes, edge-normalized ---
+    # python array_calculator.py dolph_tschebyscheff -N 10 -sll 26 --norm edge
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '10', '-sll', '26', '--norm', 'edge'])
+    # shell.main(shell.getArgs())
+```
+Results:
+
+```bash
+
+```
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    # --- Dolph-Tschebyscheff, center-normalized variant ---
+    # python array_calculator.py dolph_tschebyscheff -N 12 -sll 30 --norm center
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '12', '-sll', '30', '--norm', 'center'])
+    # shell.main(shell.getArgs())
+```
+Results:
+
+```bash
+
+```
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    # --- Triangular taper, save a polar plot to a file (headless-safe) ---
+    # python array_calculator.py triangular_array -N 16 --save tri.png --plot-style polar
+    # shell = ArrayCalculator(['triangular_array', '-N', '16', '--save', 'tri.png', '--plot-style', 'polar'])
+    # shell.main(shell.getArgs())
+
+```
+Results:
+
+```bash
+
+```
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+
+    # --- Steer the beam to 60 degrees (works on any array) ---
+    # python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --scan 60 --verbose
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--scan', '60', '--verbose'])
+    # shell.main(shell.getArgs())
+```
+Results:
+
+```bash
+
+```
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    # --- Ordinary endfire: steer to the array axis (use closer spacing) ---
+    # python array_calculator.py uniform_array -N 10 -d 0.25 --scan 0
+    # shell = ArrayCalculator(['uniform_array', '-N', '10', '-d', '0.25', '--scan', '0'])
+    # shell.main(shell.getArgs())
+```
+Results:
+
+```bash
+
+```
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    # --- Export the radiation pattern to CSV (with steering) ---
+    # python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --csv pattern.csv --scan 60
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--csv', 'pattern.csv', '--scan', '60'])
+    # shell.main(shell.getArgs())
+
+```
+Results:
+
+```bash
+
+
+```
+
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    # --- Return variables instead of printing, then read them back ---
+    # python array_calculator.py binomial_array -N 6 --variable_return
+    # shell = ArrayCalculator(['binomial_array', '-N', '6', '--variable_return'])
+    # shell.main(shell.getArgs())
+    # amps, hpbw_deg, directivity_db = shell.getCalcedParams()
+    # print("done!")
+
+```
+Results:
+
+```bash
+
+
+```
+**Uniform array (reference case), physical spacing from frequency**
+
+CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+
+Script:
+```Python
+    #   # evaluate returns a results dict, not a tuple:
+    # shell = ArrayCalculator(['evaluate', '-g', './example_data/geometry.csv', '--variable_return'])
+    # shell.main(shell.getArgs())
+    # results = shell.getCalcedParams()        # results['peak_sidelobe_db'], etc.
+    # print(results)
+
+```
+Results:
+
+```bash
+
+
+```
+   
+ 
+
+   
+
+
+
+
+
+
 
 ### Beam steering and endfire
 
@@ -742,7 +940,7 @@ The test suite uses `pytest` and is split one file per array
 and so on), with shared fixtures in `test_helpers.py` and cross-cutting checks
 (array factor / steering, CSV export, CLI dispatch, edge cases) in
 `test_array_calculator.py`. It checks the synthesis math against the worked
-examples in [1] [2] [3] and verifies the computed patterns physically (e.g. that
+examples and verifies the computed patterns physically (e.g. that
 a Dolph-Tschebyscheff design's sidelobes actually land at the requested level,
 and that a binomial array has none).
 
@@ -787,6 +985,90 @@ Coverage includes:
 Running `pytest` requires `pytest` in addition to the project's `numpy` and
 `pint` dependencies.
 
+
+## Architecture and Flow
+ 
+Addition for future work and integration with other software. This project is primarily a calculator, but the evaluator is useful for recreating and comparing results with the same suite. 
+
+There's two ways to input data, and a shared engine for the output. The **synthesis** path *generates* an
+excitation from a design goal; the **evaluator** path *accepts* an arbitrary geometry from outside (e.g. an optimizer). Both feed the same `ArrayCommon`
+pipeline that turns excitations into a pattern, figures of merit, and output.
+ 
+```
+                              ┌───────────────────────────┐
+                              │         USER / CLI         │
+                              │   array_calculator.py      │
+                              │   (argparse dispatch)      │
+                              └─────────────┬─────────────┘
+                                            │
+                ┌───────────────────────────┴───────────────────────────┐
+                │                                                         │
+                ▼                                                         ▼
+   ════════ SYNTHESIS PATH ════════                          ════════ EVALUATE PATH ════════
+   "design an array from a goal"                             "score a geometry I already have"
+                │                                                         │
+                ▼                                                         ▼
+   ┌─────────────────────────────┐                          ┌─────────────────────────────┐
+   │  one synthesis subcommand   │                          │   evaluate  -g geometry.csv │
+   │ ─────────────────────────── │                          │ ─────────────────────────── │
+   │ uniform   binomial          │                          │  ArrayEvaluator             │
+   │ dolph_t.  taylor            │                          │  read_geometry_csv()        │
+   │ villeneuve                  │                          │   position_lambda           │
+   │ triangular bartlett         │                          │   amplitude   (opt)         │
+   │ cosine  cosine_squared      │                          │   phase_deg   (opt)         │
+   │ hann  hamming  blackman     │                          └──────────────┬──────────────┘
+   │ kaiser                      │                                         │
+   │ woodward_lawson             │            (optimizer can call)         │
+   └──────────────┬──────────────┘            evaluate(positions,          │
+                  │                            amplitudes, phases) ───────►│
+                  ▼                                                         │
+   ┌─────────────────────────────┐                                         │
+   │ amplitudes()  [+ phases]    │   produces excitation                   │
+   │ (per-method synthesis math) │   (amps, and phases for                 │
+   └──────────────┬──────────────┘    woodward_lawson)                     │
+                  │                                                         │
+                  │   excitation = positions + amplitudes + phases          │
+                  └─────────────────────────┬───────────────────────────────┘
+                                            │
+                                            ▼
+                       ┌─────────────────────────────────────┐
+                       │            ArrayCommon              │
+                       │   (shared engine — one source of    │
+                       │        truth for the physics)       │
+                       │ ─────────────────────────────────── │
+                       │  array_factor(amps, theta,          │
+                       │               positions, phases)    │
+                       │        AF(θ) = Σ aₙ e^{j(2π xₙcosθ  │
+                       │                        + φₙ)}        │
+                       │                 │                   │
+                       │                 ▼                   │
+                       │  pattern_sweep()  → |AF| over θ     │
+                       │                 │                   │
+                       │      ┌──────────┼──────────┐        │
+                       │      ▼          ▼          ▼        │
+                       │   HPBW    peak sidelobe  directivity│
+                       │           (−3 dB)   (local maxima) (∫ or 2Nd/λ)│
+                       └─────────────────────┬───────────────┘
+                                            │
+                       ┌─────────────────────┼───────────────────┐
+                       ▼                     ▼                   ▼
+              ┌────────────────┐   ┌──────────────────┐  ┌────────────────┐
+              │  print to CLI  │   │  export CSV      │  │  plot pattern  │
+              │  [*] N, amps,  │   │  theta_deg,      │  │  polar / rect  │
+              │  HPBW, D, ...  │   │  AF_linear,AF_dB │  │  (matplotlib)  │
+              └────────────────┘   └──────────────────┘  └────────────────┘
+                       │
+                       │  --variable_return
+                       ▼
+              ┌────────────────────────────┐
+              │ getCalcedParams()          │
+              │  synthesis → tuple         │
+              │  evaluate  → results dict ─┼──►  external optimizer
+              └────────────────────────────┘     (proposes next geometry,
+                                                   loops back to EVALUATE PATH)
+```
+
+
 ## Development and future work
 
 * **Non-uniform / thinned / aperiodic synthesis** is intentionally *not* built in.
@@ -806,6 +1088,28 @@ Running `pytest` requires `pytest` in addition to the project's `numpy` and
 
 ## References
 
-[1]: C. A. Balanis, Antenna Theory: Analysis and Design. Hoboken, New Jersey: Wiley, 2016.
-[2]: 
-[3]:
+[1]: C. A. Balanis, Antenna Theory: Analysis and Design, 4th ed. Hoboken, NJ, USA: Wiley, 2016.
+
+[2]: V. Anand, "Antenna array factor calculations and plot," Vinoth.org. [Online]. Available: https://www.vinoth.org/rf-theory/antenna-array-factor-calculations-plot. Accessed: Jun. 4, 2026.
+
+[3]: P. Delos, B. Broughton, and J. Kraft, "Phased array antenna patterns—Part 1: Linear array beam characteristics and array factor," Analog Dialogue, Analog Devices, 2020. [Online]. Available: https://www.analog.com/en/resources/analog-dialogue/articles/phased-array-antenna-patterns-part1.html. Accessed: Jun. 4, 2026.
+
+[4]: "Uniform linear arrays," Antenna-Theory.com. [Online]. Available: https://www.antenna-theory.com/arrays/weights/uniform.php. Accessed: Jun. 4, 2026.
+
+[5]: S. W. Ellingson, "100: Angle-of-arrival estimation (Bartlett)," YouTube, 2022. [Online video]. Available: https://www.youtube.com/watch?v=GC4ETN3Lhzk. Accessed: Jun. 4, 2026.
+
+[6]: I. Berrios, "Introduction to beamforming, Part 2: The Bartlett beamformer," Medium, Sep. 30, 2024. [Online]. Available: https://medium.com/@itberrios6/introduction-to-beamforming-part-2-68db43c073b6. Accessed: Jun. 4, 2026. (and some of the other parts, but mostly this one)
+
+[7]: "Antenna design and analysis, Session 32," Centurion University of Technology and Management, Courseware. [Online]. Available: https://courseware.cutm.ac.in/wp-content/uploads/2020/05/Antenna-Design-Analysis-Session-32-1.pdf. Accessed: Jun. 4, 2026.
+
+[8]: Engineering Funda, "Binomial array (basics, pattern multiplication, Pascal's triangle & parameters) explained," YouTube. [Online video]. Available: https://youtu.be/tOkUtxvjvXA?list=PLgwJf8NK-2e6xvkHGQDZhqvHIW2BV0EpN. Accessed: Jun. 4, 2026.
+
+[9]: S. V. Hum, "Antenna arrays II," ECE422 course notes, Univ. of Toronto, Toronto, ON, Canada. [Online]. Available: https://www.waves.utoronto.ca/prof/svhum/ece422/notes/15-arrays2.pdf. Accessed: Jun. 4, 2026.
+
+[10]: "Array pattern synthesis," MathWorks Phased Array System Toolbox Documentation, The MathWorks, Inc. [Online]. Available: https://www.mathworks.com/help/phased/ug/array-pattern-synthesis.html. Accessed: Jun. 4, 2026.
+
+[11]: H. Mistialustina, Chairunnisa, and A. Munir, "Evaluation of Kaiser function-based linear array performance in suppressing SLL and its experimental approach," IEEE Access, vol. 12, pp. 94712–94732, 2024, doi: 10.1109/ACCESS.2024.3424237.
+
+[12]: A. Kumar, "Lecture 2 | Woodward-Lawson method | Array synthesis | Antenna and wave propagation," YouTube, Dr. Ashok Kumar. [Online video]. Available: https://www.youtube.com/watch?v=7uHRTEsYqe0. Accessed: Jun. 4, 2026.
+
+[13]: H. Mistialustina, Chairunnisa, and A. Munir, "Analytical approach to parameter determination in Kaiser function for power-weighted antenna array design," J. ICT Res. Appl., vol. 17, no. 1, pp. 113–127, 2023, doi: 10.5614/itbj.ict.res.appl.2023.17.1.8.
