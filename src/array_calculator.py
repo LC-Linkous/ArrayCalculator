@@ -200,24 +200,159 @@ if __name__ == "__main__":
     args = shell.getArgs()
     shell.main(args)
 
-    # CLI examples:
-    # Binomial array, print variables:
-    # python array_calculator.py binomial_array -N 6 -f 3e9
+    
+    # ==================================================================
+    # CLI EXAMPLES  (each shown two ways: as a shell command, and as the
+    # equivalent scripted ArrayCalculator call for automation/screenshots)
+    # ------------------------------------------------------------------
+    # The scripted form mirrors the __main__ block: build ArrayCalculator
+    # with an argv list, then call .main(.getArgs()). Add '--variable_return'
+    # to suppress printing and collect the results via .getCalcedParams().
     #
-    # Dolph-Tschebyscheff array with -26 dB sidelobes:
+    # NOTE on return shapes (what getCalcedParams() gives back):
+    #   most arrays         -> (amps, hpbw_deg, directivity_db)
+    #   dolph_tschebyscheff -> (amps, R, z0, directivity_db)      # 4-tuple
+    #   woodward_lawson     -> (amps, phase_deg, directivity_db)  # phase, not HPBW
+    #   evaluate            -> a results dict (not a tuple)
+    # ==================================================================
+    
+
+    # --- Uniform array (reference case), physical spacing from frequency ---
+    # python array_calculator.py uniform_array -N 10 -f 3e9
+    # shell = ArrayCalculator(['uniform_array', '-N', '10', '-f', '3e9'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Binomial array, verbose (also prints raw Pascal-triangle amplitudes) ---
+    # python array_calculator.py binomial_array -N 6 -f 3e9 --verbose
+    # shell = ArrayCalculator(['binomial_array', '-N', '6', '-f', '3e9', '--verbose'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Dolph-Tschebyscheff, -26 dB sidelobes, edge-normalized ---
     # python array_calculator.py dolph_tschebyscheff -N 10 -sll 26 --norm edge
-    #
-    # Triangular taper, save a polar plot to a file (no display needed):
-    # python array_calculator.py triangular_array -N 16 --save tri.png --plot-style polar
-    #
-    # Hamming taper, rectangular plot in a window:
-    # python array_calculator.py hamming_array -N 20 --plot --plot-style rect
-    #
-    # Export the radiation pattern to CSV:
-    # python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --csv pattern.csv
-    #
-    # Taylor n-bar array with -30 dB near-in sidelobes, nbar = 6:
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '10', '-sll', '26', '--norm', 'edge'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Dolph-Tschebyscheff, center-normalized variant ---
+    # python array_calculator.py dolph_tschebyscheff -N 12 -sll 30 --norm center
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '12', '-sll', '30', '--norm', 'center'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Taylor n-bar, -30 dB near-in sidelobes, nbar = 6, verbose ---
     # python array_calculator.py taylor_array -N 20 -sll 30 -nbar 6 --verbose
-    #
-    # Return Variables instead of printing:
+    # shell = ArrayCalculator(['taylor_array', '-N', '20', '-sll', '30', '-nbar', '6', '--verbose'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Villeneuve n-bar (discrete Taylor), same design point ---
+    # python array_calculator.py villeneuve_array -N 20 -sll 30 -nbar 6 --verbose
+    # shell = ArrayCalculator(['villeneuve_array', '-N', '20', '-sll', '30', '-nbar', '6', '--verbose'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Triangular taper, save a polar plot to a file (headless-safe) ---
+    # python array_calculator.py triangular_array -N 16 --save tri.png --plot-style polar
+    # shell = ArrayCalculator(['triangular_array', '-N', '16', '--save', 'tri.png', '--plot-style', 'polar'])
+    # shell.main(shell.getArgs())
+
+
+    # --- Bartlett taper (zero-endpoint triangular) ---
+    # python array_calculator.py bartlett_array -N 16
+    # shell = ArrayCalculator(['bartlett_array', '-N', '16'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Cosine taper ---
+    # python array_calculator.py cosine_array -N 12
+    # shell = ArrayCalculator(['cosine_array', '-N', '12'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Hann taper ---
+    # python array_calculator.py hann_array -N 16
+    # shell = ArrayCalculator(['hann_array', '-N', '16'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Hamming taper, rectangular plot in an interactive window ---
+    # python array_calculator.py hamming_array -N 20 --plot --plot-style rect
+    # shell = ArrayCalculator(['hamming_array', '-N', '20', '--plot', '--plot-style', 'rect'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Blackman taper, both plot views saved to a file ---
+    # python array_calculator.py blackman_array -N 24 --save blackman.png
+    # shell = ArrayCalculator(['blackman_array', '-N', '24', '--save', 'blackman.png'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Kaiser taper, beta = 8 (low sidelobes) ---
+    # python array_calculator.py kaiser_array -N 16 -beta 8
+    # shell = ArrayCalculator(['kaiser_array', '-N', '16', '-beta', '8'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Kaiser taper, beta = 4 (closer to uniform) ---
+    # python array_calculator.py kaiser_array -N 20 -beta 4
+    # shell = ArrayCalculator(['kaiser_array', '-N', '20', '-beta', '4'])
+    # shell.main(shell.getArgs())
+    
+    
+    # --- Woodward-Lawson flat-top beam over a +/-30 deg sector ---
+    # python array_calculator.py woodward_lawson_array -N 20 --shape flat_top --sector 30
+    # shell = ArrayCalculator(['woodward_lawson_array', '-N', '20', '--shape', 'flat_top', '--sector', '30'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Woodward-Lawson cosecant-squared coverage beam, verbose (prints phases) ---
+    # python array_calculator.py woodward_lawson_array -N 24 --shape cosecant_squared --sector 35 --verbose
+    # shell = ArrayCalculator(['woodward_lawson_array', '-N', '24', '--shape', 'cosecant_squared', '--sector', '35', '--verbose'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Steer the beam to 60 degrees (works on any array) ---
+    # python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --scan 60 --verbose
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--scan', '60', '--verbose'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Ordinary endfire: steer to the array axis (use closer spacing) ---
+    # python array_calculator.py uniform_array -N 10 -d 0.25 --scan 0
+    # shell = ArrayCalculator(['uniform_array', '-N', '10', '-d', '0.25', '--scan', '0'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Export the radiation pattern to CSV (with steering) ---
+    # python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --csv pattern.csv --scan 60
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--csv', 'pattern.csv', '--scan', '60'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Evaluate an arbitrary geometry from a CSV (the optimizer hook) ---
+    # python array_calculator.py evaluate -g ./example_data/geometry.csv
+    # shell = ArrayCalculator(['evaluate', '-g', './example_data/geometry.csv'])
+    # shell.main(shell.getArgs())
+    
+
+    # --- Return variables instead of printing, then read them back ---
     # python array_calculator.py binomial_array -N 6 --variable_return
+    # shell = ArrayCalculator(['binomial_array', '-N', '6', '--variable_return'])
+    # shell.main(shell.getArgs())
+    # amps, hpbw_deg, directivity_db = shell.getCalcedParams()
+    # print("done!")
+    
+
+    #   # Dolph returns a 4-tuple (note the extra R, z0):
+    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '10', '-sll', '26', '--variable_return'])
+    # shell.main(shell.getArgs())
+    # amps, R, z0, directivity_db = shell.getCalcedParams()
+    # print("done!")
+    
+    #   # evaluate returns a results dict, not a tuple:
+    # shell = ArrayCalculator(['evaluate', '-g', './example_data/geometry.csv', '--variable_return'])
+    # shell.main(shell.getArgs())
+    # results = shell.getCalcedParams()        # results['peak_sidelobe_db'], etc.
+    # print(results)
