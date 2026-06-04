@@ -27,19 +27,26 @@ from array_calculator import ArrayCalculator
 
 
 # Each array and the extra CLI args it needs beyond -N. The parametric
-# methods require -sll (and Taylor takes -nbar); the closed-form tapers
-# take nothing extra.
+# methods require -sll (Taylor and Villeneuve also take -nbar; Kaiser takes
+# -beta; Woodward-Lawson takes --shape); the closed-form tapers take nothing
+# extra. The `evaluate` subcommand is intentionally omitted -- it scores a
+# geometry CSV rather than synthesizing from -N, so it does not belong in this
+# (array x plot-style) matrix.
 ARRAY_ARGS = {
     "uniform_array": [],
     "binomial_array": [],
     "triangular_array": [],
+    "bartlett_array": [],
     "cosine_array": [],
     "cosine_squared_array": [],
     "hann_array": [],
     "hamming_array": [],
     "blackman_array": [],
+    "kaiser_array": ["-beta", "8"],
     "dolph_tschebyscheff": ["-sll", "26"],
     "taylor_array": ["-sll", "30", "-nbar", "5"],
+    "villeneuve_array": ["-sll", "30", "-nbar", "5"],
+    "woodward_lawson_array": ["--shape", "flat_top", "--sector", "30"],
 }
 
 PLOT_STYLES = ["polar", "rect", "both"]
