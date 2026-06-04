@@ -45,6 +45,25 @@ class ArrayCommon:
         formatted = ", ".join("{:.3f}".format(v) for v in values)
         print("[*]", name, "= [" + formatted + "]")
 
+    # --- normalization ------------------------------------------------
+    def normalize(self, amps, mode=None, eps=1e-9):
+        # Scale amplitudes by a single positive factor; never reorders or
+        # reshapes. 'center' -> peak element becomes 1.0; 'edge' -> smallest
+        # significant element becomes 1.0. Edge mode guards against the
+        # near-zero edge samples some tapers produce (e.g. Blackman), which
+        # would otherwise divide by ~0. Both modes describe the same physical
+        # array and produce an identical radiation pattern; only the printed
+        # scale differs.
+        amps = np.asarray(amps, dtype=float)
+        if mode is None:
+            mode = getattr(self.args, "norm", "center")
+        if mode == "edge":
+            sig = amps[amps > eps]
+            ref = sig.min() if sig.size else amps.max()
+        else:  # center
+            ref = amps.max()
+        return amps / ref
+
     # --- frequency / spacing ------------------------------------------
     def wavelength(self):
         if getattr(self.args, "frequency", None):
@@ -61,10 +80,19 @@ class ArrayCommon:
             self.value_print("Element spacing d", d_over_lambda, "lambda")
 
     # --- array factor / pattern ---------------------------------------
-    def array_factor(self, amps, theta_deg, d_over_lambda=None, scan_deg=None):
-        # |AF(theta)| for a linear array of equally spaced elements.
-        # psi = 2*pi*(d/lambda)*cos(theta) - beta, with beta the progressive
-        # phase that steers the beam to scan_deg (broadside => scan_deg=90).
+    def array_factor(self, amps, theta_deg, d_over_lambda=None, scan_deg=None,
+                     positions=None, phases=None):
+        # |AF(theta)| for a linear array along one axis. The general form is
+        #   AF(theta) = sum_n a_n exp( j [ 2 pi x_n cos(theta) + phi_n ] )
+        # where x_n is the element position in wavelengths and phi_n is the
+        # per-element excitation phase (radians).
+        #
+        # Backward-compatible defaults reproduce the equally-spaced, linearly
+        # -steered case exactly: if positions is None the elements sit at
+        # x_n = n * (d/lambda); if phases is None a progressive steering phase
+        # phi_n = -2 pi x_n cos(scan) points the beam at scan_deg (broadside =>
+        # scan_deg = 90 => phi_n = 0). Pass positions and/or phases explicitly
+        # to evaluate an arbitrary (non-uniform, individually phased) geometry.
         amps = np.asarray(amps, dtype=float)
         N = len(amps)
         if d_over_lambda is None:
@@ -72,16 +100,26 @@ class ArrayCommon:
         if scan_deg is None:
             scan_deg = getattr(self.args, "scan", 90.0)
 
-        n = np.arange(N)
-        beta = -2.0 * pi * d_over_lambda * cos(radians(scan_deg))
+        if positions is None:
+            positions = np.arange(N) * float(d_over_lambda)
+        else:
+            positions = np.asarray(positions, dtype=float)
+        if phases is None:
+            # progressive phase that steers a uniform array to scan_deg
+            phases = -2.0 * pi * positions * cos(radians(scan_deg))
+        else:
+            phases = np.asarray(phases, dtype=float)
+
         theta = np.radians(np.asarray(theta_deg, dtype=float))
-        psi = 2.0 * pi * d_over_lambda * np.cos(theta)[:, None] + beta
-        af = np.abs(np.sum(amps[None, :] * np.exp(1j * n[None, :] * psi), axis=1))
+        # spatial phase per (angle, element) plus the per-element excitation phase
+        arg = (2.0 * pi * positions[None, :] * np.cos(theta)[:, None]
+               + phases[None, :])
+        af = np.abs(np.sum(amps[None, :] * np.exp(1j * arg), axis=1))
         return af
 
-    def pattern_sweep(self, amps, n_points=721):
+    def pattern_sweep(self, amps, n_points=721, positions=None, phases=None):
         theta = np.linspace(0.0, 180.0, n_points)
-        af = self.array_factor(amps, theta)
+        af = self.array_factor(amps, theta, positions=positions, phases=phases)
         af_norm = af / af.max()
         af_db = 20.0 * np.log10(np.clip(af_norm, 1e-12, None))
         return theta, af_norm, af_db

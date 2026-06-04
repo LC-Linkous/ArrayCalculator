@@ -33,8 +33,11 @@ class BinomialArray(ArrayCommon):
         return 1.06 / sqrt(N - 1)
 
     def directivity(self, N, d_over_lambda):
-        # D0 ~= 1.77 * sqrt(1 + 2 L / lambda), L = (N-1) d.
-        # For d = lambda/2 this reduces to 1.77 * sqrt(N).
+        # Balanis' closed-form *approximation* for the binomial array:
+        # D0 ~= 1.77 * sqrt(1 + 2 L / lambda), L = (N-1) d. For d = lambda/2
+        # this reduces to 1.77 * sqrt(N). It is a large-array fit and runs a
+        # few percent high versus a direct pattern integral (e.g. N=6 gives
+        # 4.34 vs ~4.06 integrated); kept here to match the EGRE 540 notes.
         L_over_lambda = (N - 1) * d_over_lambda
         return 1.77 * sqrt(1.0 + 2.0 * L_over_lambda)
 
@@ -44,7 +47,7 @@ class BinomialArray(ArrayCommon):
         d_over_lambda = self.args.spacing  # fraction of a wavelength
 
         amps = self.amplitudes(N)
-        amps_norm = amps / amps.max()
+        amps_norm = self.normalize(amps)
         hpbw_rad = self.hpbw(N)
         D0 = self.directivity(N, d_over_lambda)
         D0_db = 10.0 * log10(D0)

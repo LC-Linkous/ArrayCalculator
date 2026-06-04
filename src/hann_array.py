@@ -53,7 +53,7 @@ class HannArray(ArrayCommon):
         d_over_lambda = self.args.spacing
 
         amps = self.amplitudes(N)
-        amps_norm = amps / amps.max()
+        amps_norm = self.normalize(amps)
         hpbw_rad = self.hpbw(N)
         D0 = self.directivity(N, d_over_lambda, amps)
         D0_db = 10.0 * log10(D0)

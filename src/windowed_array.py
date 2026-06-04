@@ -111,7 +111,7 @@ class WindowedArray(ArrayCommon):
         label = TAPERS[self.taper][0]
 
         amps = self.amplitudes(N)
-        amps_norm = amps / amps.max()
+        amps_norm = self.normalize(amps)
         hpbw_rad = self.hpbw(N)
         D0 = self.directivity(N, d_over_lambda, amps)
         D0_db = 10.0 * log10(D0)

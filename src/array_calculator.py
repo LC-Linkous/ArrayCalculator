@@ -21,16 +21,23 @@ from cosine_squared_array import CosineSquaredArray
 from hann_array import HannArray
 from hamming_array import HammingArray
 from blackman_array import BlackmanArray
+from bartlett_array import BartlettArray
+from kaiser_array import KaiserArray
+from villeneuve_array import VilleneuveArray
+from woodward_lawson_array import WoodwardLawsonArray
+from array_evaluator import ArrayEvaluator
 
 
 # Arrays whose only inputs are the common ones (N, spacing, freq, plotting,
 # etc.) -- i.e. no method-specific flags like -sll. Maps the subcommand name
-# to (class, driver-method-name). The parametric arrays (Dolph, Taylor) are
-# built separately below because they add their own arguments.
+# to (class, driver-method-name). The parametric arrays (Dolph, Taylor,
+# Villeneuve, Kaiser, Woodward-Lawson, and the evaluator) are built separately
+# below because they add their own arguments.
 SIMPLE_ARRAYS = {
     "uniform_array": (UniformArray, "uniform_array_calculator"),
     "binomial_array": (BinomialArray, "binomial_array_calculator"),
     "triangular_array": (TriangularArray, "triangular_array_calculator"),
+    "bartlett_array": (BartlettArray, "bartlett_array_calculator"),
     "cosine_array": (CosineArray, "cosine_array_calculator"),
     "cosine_squared_array": (CosineSquaredArray, "cosine_squared_array_calculator"),
     "hann_array": (HannArray, "hann_array_calculator"),
@@ -70,6 +77,10 @@ def _add_common_args(p, require_elements=True):
                         '(implies --plot; works without a display)')
     p.add_argument('--variable_return', action='store_true', required=False, default=False,
                    help='Return Variables instead of printing')
+    p.add_argument('--norm', type=str, choices=['edge', 'center'],
+                   required=False, default='center',
+                   help='Normalize amplitudes to the edge or center element '
+                        '(default center; Dolph-Tschebyscheff conventionally uses edge)')
 
 
 class ArrayCalculator:
@@ -92,9 +103,9 @@ class ArrayCalculator:
         _add_common_args(dt)
         dt.add_argument('-sll', '--sidelobe_level', type=float, required=True,
                         help='Desired sidelobe level in dB (e.g. 26, 30)')
-        dt.add_argument('--norm', type=str, choices=['edge', 'center'],
-                        required=False, default='edge',
-                        help='Normalize to edge or center element (default edge)')
+        # Dolph conventionally reports edge-normalized coefficients; override
+        # the common default (center) for this subcommand only.
+        dt.set_defaults(norm='edge')
 
         # TAYLOR ARRAY (adds -sll and -nbar)
         ta = subparsers.add_parser('taylor_array', add_help=False)
@@ -104,6 +115,39 @@ class ArrayCalculator:
         ta.add_argument('-nbar', '--nbar', type=int, required=False, default=5,
                         help='Number of near-in sidelobes held near the design level '
                              '(default 5)')
+
+        # VILLENEUVE ARRAY (discrete Taylor; adds -sll and -nbar)
+        vl = subparsers.add_parser('villeneuve_array', add_help=False)
+        _add_common_args(vl)
+        vl.add_argument('-sll', '--sidelobe_level', type=float, required=True,
+                        help='Desired (near-in) sidelobe level in dB')
+        vl.add_argument('-nbar', '--nbar', type=int, required=False, default=5,
+                        help='Number of near-in sidelobes held near the design level '
+                             '(default 5)')
+
+        # KAISER ARRAY (parametric taper; adds -beta)
+        ka = subparsers.add_parser('kaiser_array', add_help=False)
+        _add_common_args(ka)
+        ka.add_argument('-beta', '--beta', type=float, required=False, default=6.0,
+                        help='Kaiser shape parameter (larger = lower sidelobes, '
+                             'wider beam; default 6.0)')
+
+        # WOODWARD-LAWSON ARRAY (shaped beam; adds --shape, --sector, --floor)
+        wl = subparsers.add_parser('woodward_lawson_array', add_help=False)
+        _add_common_args(wl)
+        wl.add_argument('--shape', type=str, choices=['flat_top', 'cosecant_squared'],
+                        required=False, default='flat_top',
+                        help='Target pattern shape (default flat_top)')
+        wl.add_argument('--sector', type=float, required=False, default=30.0,
+                        help='Half-width of the shaped sector in degrees (default 30)')
+        wl.add_argument('--floor', type=float, required=False, default=0.0,
+                        help='Desired linear amplitude outside the sector (default 0)')
+
+        # EVALUATOR (scores an arbitrary geometry from a CSV; not a synthesis)
+        ev = subparsers.add_parser('evaluate', add_help=False)
+        _add_common_args(ev, require_elements=False)
+        ev.add_argument('-g', '--geometry', type=str, required=True,
+                        help='Geometry CSV: position_lambda[, amplitude][, phase_deg]')
 
         self.args = main_parser.parse_args(a)
         # --save implies --plot so the user doesn't have to pass both.
@@ -126,6 +170,22 @@ class ArrayCalculator:
         elif name == 'taylor_array':
             t = TaylorArray(args)
             self.calcedParams = t.taylor_array_calculator()
+
+        elif name == 'villeneuve_array':
+            v = VilleneuveArray(args)
+            self.calcedParams = v.villeneuve_array_calculator()
+
+        elif name == 'kaiser_array':
+            k = KaiserArray(args)
+            self.calcedParams = k.kaiser_array_calculator()
+
+        elif name == 'woodward_lawson_array':
+            w = WoodwardLawsonArray(args)
+            self.calcedParams = w.woodward_lawson_array_calculator()
+
+        elif name == 'evaluate':
+            e = ArrayEvaluator(args)
+            self.calcedParams = e.evaluate_calculator()
 
     def getArgs(self):
         return self.args

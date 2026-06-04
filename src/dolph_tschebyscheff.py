@@ -71,7 +71,11 @@ class DolphTschebyscheff(ArrayCommon):
             f = 1.0
         else:
             f = 1.0 + 0.636 * (2.0 / R * np.cosh(np.sqrt(arg))) ** 2
-        D0 = 2.0 * R ** 2 / (1.0 + (R ** 2 - 1.0) * f / (N * self.args.spacing * 2.0))
+        # Balanis (6-79): D0 = 2 R^2 / (1 + (R^2 - 1) f / [(L+d)/lambda]),
+        # with the broadside array length L = (N-1) d, so (L+d)/lambda =
+        # N * d / lambda. (An earlier version used 2 N d / lambda here, which
+        # roughly doubled D0.)
+        D0 = 2.0 * R ** 2 / (1.0 + (R ** 2 - 1.0) * f / (N * self.args.spacing))
         return D0
 
     # --- driver --------------------------------------------------------
@@ -82,10 +86,7 @@ class DolphTschebyscheff(ArrayCommon):
 
         amps, R, z0 = self.amplitudes(N, sll_db)
 
-        if self.args.norm == "edge":
-            amps_norm = amps / amps.min()
-        else:  # center
-            amps_norm = amps / amps.max()
+        amps_norm = self.normalize(amps)
 
         D0 = self.directivity(N, R)
         D0_db = 10.0 * log10(D0)

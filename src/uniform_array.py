@@ -55,7 +55,7 @@ class UniformArray(ArrayCommon):
         d_over_lambda = self.args.spacing
 
         amps = self.amplitudes(N)
-        amps_norm = amps / amps.max()
+        amps_norm = self.normalize(amps)
         hpbw_rad = self.hpbw(N, d_over_lambda)
         D0 = self.directivity(N, d_over_lambda)
         D0_db = 10.0 * log10(D0)

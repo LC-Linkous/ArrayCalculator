@@ -93,7 +93,7 @@ class TaylorArray(ArrayCommon):
         d_over_lambda = self.args.spacing
 
         amps, R, sigma = self.amplitudes(N, sll_db, nbar)
-        amps_norm = amps / amps.max()  # Taylor is conventionally center-normalized
+        amps_norm = self.normalize(amps)  # Taylor conventionally center-normalized (the default)
 
         hpbw_rad = self.hpbw(N, amps)
         D0 = self.directivity(N, d_over_lambda, amps)
