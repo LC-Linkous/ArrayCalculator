@@ -64,6 +64,25 @@ class TestBinomialSynthesis:
         for N in [5, 6, 7, 9, 10]:
             assert b.directivity(N, 0.5) == pytest.approx(1.77 * math.sqrt(N), rel=1e-9)
 
+    def test_directivity_is_approximation_above_integral(self):
+        # The closed form is a large-array fit and reads a few percent high
+        # versus the directivity integrated from the pattern. Documented here
+        # so the gap is a known property, not a surprise: it should be close
+        # (within ~10%) and on the high side.
+        b = BinomialArray(make_args(elements=6))
+        theta = np.linspace(1e-6, np.pi - 1e-6, 400001)
+        for N in [6, 9, 10]:
+            amps = b.amplitudes(N)
+            n = np.arange(N)
+            psi = 2.0 * np.pi * 0.5 * np.cos(theta)[:, None]
+            af = np.abs((amps[None, :] * np.exp(1j * n[None, :] * psi)).sum(axis=1))
+            power = af ** 2
+            integral = (2.0 * power[np.argmin(np.abs(theta - np.pi / 2))]
+                        / np.trapezoid(power * np.sin(theta), theta))
+            formula = b.directivity(N, 0.5)
+            assert formula >= integral
+            assert formula == pytest.approx(integral, rel=0.10)
+
 
 # ======================================================================
 # BINOMIAL PHYSICAL PATTERN

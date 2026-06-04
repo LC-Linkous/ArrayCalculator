@@ -17,6 +17,21 @@ from dolph_tschebyscheff import DolphTschebyscheff
 from test_helpers import make_args, peak_sidelobe_db
 
 
+def _integrated_directivity(obj, amps, d_over_lambda=0.5):
+    # Broadside directivity from the pattern itself, treating elements as
+    # isotropic: D = 2 |AF(90)|^2 / integral_0^pi |AF|^2 sin(theta) dtheta.
+    # This is the model-independent ground truth for the closed-form D0.
+    amps = np.asarray(amps, dtype=float)
+    theta = np.linspace(1e-6, np.pi - 1e-6, 400001)
+    n = np.arange(len(amps))
+    psi = 2.0 * np.pi * d_over_lambda * np.cos(theta)[:, None]
+    af = np.abs((amps[None, :] * np.exp(1j * n[None, :] * psi)).sum(axis=1))
+    power = af ** 2
+    boresight = power[np.argmin(np.abs(theta - np.pi / 2))]
+    integral = np.trapezoid(power * np.sin(theta), theta)
+    return 2.0 * boresight / integral
+
+
 # ======================================================================
 # DOLPH-TSCHEBYSCHEFF SYNTHESIS
 # ======================================================================
@@ -115,6 +130,38 @@ class TestDolphPattern:
             return theta[i] - theta[peak]
 
         assert first_null_width(dt, damp) < first_null_width(b, bamp)
+
+
+# ======================================================================
+# DOLPH DIRECTIVITY  (regression guard for the 2x denominator bug)
+# ======================================================================
+class TestDolphDirectivity:
+    @pytest.mark.parametrize("N,sll", [(10, 26), (20, 30), (8, 25), (12, 30)])
+    def test_directivity_matches_pattern_integral(self, N, sll):
+        # The closed-form D0 must track the directivity integrated from the
+        # actual pattern. The analytic broadening-factor formula is good to a
+        # couple percent; an earlier version was ~2x high (the (L+d) array
+        # length was written as 2 N d instead of N d).
+        dt = DolphTschebyscheff(make_args(elements=N, sidelobe_level=sll))
+        amps, R, _ = dt.amplitudes(N, sll)
+        formula = dt.directivity(N, R)
+        integral = _integrated_directivity(dt, amps, 0.5)
+        assert formula == pytest.approx(integral, rel=0.05)
+
+    def test_directivity_below_uniform(self):
+        # A tapered (low-sidelobe) array always has lower directivity than
+        # the uniform array of the same size (D0 = N at d = lambda/2).
+        N = 10
+        dt = DolphTschebyscheff(make_args(elements=N, sidelobe_level=26))
+        _, R, _ = dt.amplitudes(N, 26)
+        assert dt.directivity(N, R) < N
+
+    def test_directivity_physically_sane(self):
+        # N=10 at lambda/2 cannot have directivity ~18; it must sit a little
+        # under 10. Direct guard against the old inflated value.
+        dt = DolphTschebyscheff(make_args(elements=10, sidelobe_level=26))
+        _, R, _ = dt.amplitudes(10, 26)
+        assert 8.0 < dt.directivity(10, R) < 10.0
 
 
 if __name__ == "__main__":
