@@ -185,7 +185,8 @@ class ArrayEvaluator(ArrayCommon):
             print("[*] Pattern CSV generated: " + self.args.csv)
         if getattr(self.args, "plot", False):
             self.plot_pattern(amps, title="Evaluated geometry (N=%d)" % res["N"],
-                              style=getattr(self.args, "plot_style", "both"))
+                              style=getattr(self.args, "plot_style", "both"),
+                              positions=positions, phases=phases)
 
         if self.args.variable_return:
             return res

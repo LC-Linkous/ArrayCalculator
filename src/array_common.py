@@ -179,8 +179,38 @@ class ArrayCommon:
                        label="SLL %g dB" % -abs(sll_db))
         ax.legend(loc="upper right", fontsize=8)
 
+    def _element_axes(self, ax, positions, amps, phases=None):
+        # Element layout along the array axis: stem height = |amplitude|,
+        # x = element position in wavelengths. If any element carries a
+        # nonzero excitation phase, color the markers by phase on a cyclic
+        # colormap (phase wraps at +/-180 deg). Dull for a uniform array;
+        # informative for tapered, steered, or non-uniform geometries.
+        amps = np.asarray(amps, dtype=float)
+        positions = np.asarray(positions, dtype=float)
+        a = amps / amps.max() if amps.max() > 0 else amps
+        ax.vlines(positions, 0, a, color=self._GRID, lw=1.2, zorder=1)
+        if phases is not None and np.max(np.abs(np.asarray(phases, dtype=float))) > 1e-6:
+            ph = np.degrees(np.asarray(phases, dtype=float))
+            sc = ax.scatter(positions, a, c=ph, cmap="twilight", s=38, zorder=3,
+                            vmin=-180, vmax=180, edgecolor="k", linewidth=0.4)
+            cb = ax.figure.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
+            cb.set_label("phase (deg)", fontsize=8)
+            cb.ax.tick_params(labelsize=7)
+        else:
+            ax.scatter(positions, a, color=self._ACCENT, s=34, zorder=3,
+                       edgecolor="k", linewidth=0.4)
+        ax.set_xlabel("element position (wavelengths)")
+        ax.set_ylabel("|amplitude|")
+        ax.set_ylim(0, 1.08)
+        if len(positions) > 1:
+            pad = 0.3
+            ax.set_xlim(positions.min() - pad, positions.max() + pad)
+        ax.grid(True, color=self._GRID, lw=0.5, axis="y")
+        ax.set_axisbelow(True)
+
     def plot_pattern(self, amps, title="Array Factor", sll_db=None,
-                     style=None, floor=-60, savepath=None):
+                     style=None, floor=-60, savepath=None,
+                     positions=None, phases=None, show_elements=None):
         # Lazy import keeps matplotlib an optional dependency: the core
         # calculator runs without it installed unless --plot is used.
         try:
@@ -196,18 +226,54 @@ class ArrayCommon:
             style = getattr(self.args, "plot_style", "both") or "both"
         if savepath is None:
             savepath = getattr(self.args, "save", None)
+        if show_elements is None:
+            show_elements = getattr(self.args, "elements_plot", False)
         theta, af_norm, af_db = self.pattern_sweep(amps)
         af_db = np.clip(af_db, floor, 0)
 
+        # Default geometry for the element panel: equally spaced, with the
+        # progressive steering phase, matching what array_factor assumes.
+        if show_elements:
+            N = len(np.asarray(amps))
+            if positions is None:
+                positions = np.arange(N) * float(getattr(self.args, "spacing", 0.5))
+            if phases is None:
+                scan = getattr(self.args, "scan", 90.0)
+                positions_arr = np.asarray(positions, dtype=float)
+                phases = -2.0 * pi * positions_arr * cos(radians(scan))
+
+        # Figure layout: the pattern panel(s) on top, optional element row below.
+        pattern_cols = 2 if style == "both" else 1
         if style == "polar":
-            fig = plt.figure(figsize=(5.4, 5.4))
+            base = (5.4, 5.4)
+        elif style == "rect":
+            base = (6.6, 4.2)
+        else:
+            base = (10.6, 4.8)
+
+        if show_elements:
+            fig = plt.figure(figsize=(base[0], base[1] + 2.6))
+            gs = fig.add_gridspec(2, pattern_cols, height_ratios=[base[1], 2.4])
+            if style == "polar":
+                self._polar_axes(fig.add_subplot(gs[0, 0], projection="polar"),
+                                 theta, af_db, sll_db, floor)
+            elif style == "rect":
+                self._rect_axes(fig.add_subplot(gs[0, 0]), theta, af_db, sll_db, floor)
+            else:
+                self._polar_axes(fig.add_subplot(gs[0, 0], projection="polar"),
+                                 theta, af_db, sll_db, floor)
+                self._rect_axes(fig.add_subplot(gs[0, 1]), theta, af_db, sll_db, floor)
+            # element panel spans the full width on the bottom row
+            self._element_axes(fig.add_subplot(gs[1, :]), positions, amps, phases)
+        elif style == "polar":
+            fig = plt.figure(figsize=base)
             self._polar_axes(fig.add_subplot(111, projection="polar"),
                              theta, af_db, sll_db, floor)
         elif style == "rect":
-            fig = plt.figure(figsize=(6.6, 4.2))
+            fig = plt.figure(figsize=base)
             self._rect_axes(fig.add_subplot(111), theta, af_db, sll_db, floor)
         else:  # both
-            fig = plt.figure(figsize=(10.6, 4.8))
+            fig = plt.figure(figsize=base)
             self._polar_axes(fig.add_subplot(121, projection="polar"),
                              theta, af_db, sll_db, floor)
             self._rect_axes(fig.add_subplot(122), theta, af_db, sll_db, floor)
