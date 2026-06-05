@@ -1,14 +1,13 @@
 # ArrayCalculator
-in progress AntennaCAT compatible array calculator.
+
 
 ## NOT STABLE, NOT COMPLETE
 
+A CLI-based, AntennaCAT-compatible array calculator, synthesizer, and evaluation tool. 
 
-This project is a CLI-based linear antenna array synthesis (sort of, full functionality in progress) tool. 
-It is written as an [AntennaCAT] (https://github.com/LC-Linkous/AntennaCalculationAutotuningTool) compatible tool, similar to the CLI interface of the [AntennaCalculator](https://github.com/Dollarhyde/AntennaCalculator).
-This tool designs the excitation coefficients for a multi-element array given a design
-goal, then reports the beam characteristics and (optionally) exports the radiation pattern.
+It is written as an [AntennaCAT](https://github.com/LC-Linkous/AntennaCalculationAutotuningTool) compatible tool, similar to the CLI interface of the [AntennaCalculator](https://github.com/Dollarhyde/AntennaCalculator). 
 
+This tool is capable of calculating the radiation pattern and beam characteristics (half-power beamwidth, peak sidelobe level, and directivity) of a linear array from its element geometry and excitation. Complementary to that, the synthesis subcommands solve the inverse problem: given a design goal (sidelobe level, taper, or beam shape), they compute the excitation coefficients. The evaluate mode is the direct/analysis tool; given known inputs (positions, amplitudes, phases), it reports the resulting pattern. Both command paths share one array-factor engine, so synthesized designs are also analyzed before their beam characteristics are reported. 
 
 
 The calculator features the following synthesis methods:
@@ -42,12 +41,10 @@ Supported outputs:
   or both; shown in a window or saved to a file with `--save`
 
 
-
 The synthesis methods are based on the standard formulations (see [references](#references)). The
 parametric designs (Dolph-Tschebyscheff, Taylor, Villeneuve) are verified
 numerically to place their pattern sidelobes at the requested level, and the
 Woodward-Lawson designs are checked to approximate the requested pattern shape.
-
 
 
 ## Table of Contents
@@ -267,25 +264,10 @@ of these.
 
 ### CLI vs Scripting Comparison
 
-ADD EXAMPLE HERE of the function calls in the CLI format, but just directly from python scripts
-This is only typically used when integrating the calculators into other programs without losing the CLI functionality
-but there's also some relevance because it opens up the calculator to scripting options. TODO, eventually. 
-
-    # ==================================================================
-    # CLI EXAMPLES  (each shown two ways: as a shell command, and as the
-    # equivalent scripted ArrayCalculator call for automation/screenshots)
-    # ------------------------------------------------------------------
-    # The scripted form mirrors the __main__ block: build ArrayCalculator
-    # with an argv list, then call .main(.getArgs()). Add '--variable_return'
-    # to suppress printing and collect the results via .getCalcedParams().
-    #
-    # NOTE on return shapes (what getCalcedParams() gives back):
-    #   most arrays         -> (amps, hpbw_deg, directivity_db)
-    #   dolph_tschebyscheff -> (amps, R, z0, directivity_db)      # 4-tuple
-    #   woodward_lawson     -> (amps, phase_deg, directivity_db)  # phase, not HPBW
-    #   evaluate            -> a results dict (not a tuple)
-    # ==================================================================
-
+This section has example comparisons of what the CLI and scripting input 
+look like. This is only typically used when integrating the calculator 
+into other programs without losing the CLI functionality or heavilty adapting
+existing code. This is also common for manual unit testing.
 
 **Uniform array (reference case), physical spacing from frequency**
 
@@ -298,182 +280,211 @@ shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
+```sh
+[*] N = 10
+[*] Amplitudes (normalized) = [1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+[*] Wavelength = 10.00 centimeter
+[*] Element spacing d = 5.00 centimeter
+[*] HPBW = 10.21 deg
+[*] Directivity = 10
+[*] Directivity = 10.00 dB
 ```
     
 
-**Uniform array (reference case), physical spacing from frequency**
+**Binomial array, verbose (also prints raw Pascal-triangle amplitudes)**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
-
-Script:
-```Python
-    # --- Binomial array, verbose (also prints raw Pascal-triangle amplitudes) ---
-    # python array_calculator.py binomial_array -N 6 -f 3e9 --verbose
-    # shell = ArrayCalculator(['binomial_array', '-N', '6', '-f', '3e9', '--verbose'])
-    # shell.main(shell.getArgs())
-    
-```
-Results:
-
-```bash
-
-```
-
-**Uniform array (reference case), physical spacing from frequency**
-
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+CLI input: `python array_calculator.py binomial_array -N 6 -f 3e9 --verbose`
 
 Script:
 ```Python
-    # --- Dolph-Tschebyscheff, -26 dB sidelobes, edge-normalized ---
-    # python array_calculator.py dolph_tschebyscheff -N 10 -sll 26 --norm edge
-    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '10', '-sll', '26', '--norm', 'edge'])
-    # shell.main(shell.getArgs())
+shell = ArrayCalculator(['binomial_array', '-N', '6', '-f', '3e9', '--verbose'])
+shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
+```sh
+[*] N = 6
+[*] Amplitudes (raw) = [1.000, 5.000, 10.000, 10.000, 5.000, 1.000]
+[*] Amplitudes (normalized) = [0.100, 0.500, 1.000, 1.000, 0.500, 0.100]
+[*] Wavelength = 10.00 centimeter
+[*] Element spacing d = 5.00 centimeter
+[*] HPBW = 27.16 deg
+[*] Directivity = 4.34
+[*] Directivity = 6.37 dB
 ```
 
-**Uniform array (reference case), physical spacing from frequency**
+**Dolph-Tschebyscheff, -26 dB sidelobes, edge-normalized**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+CLI input: `python array_calculator.py dolph_tschebyscheff -N 10 -sll 26 --norm edge`
 
 Script:
 ```Python
-    # --- Dolph-Tschebyscheff, center-normalized variant ---
-    # python array_calculator.py dolph_tschebyscheff -N 12 -sll 30 --norm center
-    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '12', '-sll', '30', '--norm', 'center'])
-    # shell.main(shell.getArgs())
+shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '10', '-sll', '26', '--norm', 'edge'])
+shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
+```sh
+[*] N = 10
+[*] Sidelobe level = 26.00 dB
+[*] Amplitudes (edge-normalized) = [1.000, 1.355, 1.968, 2.479, 2.769, 2.769, 2.479, 1.968, 1.355, 1.000]
+[*] Element spacing d = 0.50 lambda
+[*] Directivity = 9.19
+[*] Directivity = 9.63 dB
 ```
 
-**Uniform array (reference case), physical spacing from frequency**
+**Dolph-Tschebyscheff, center-normalized variant**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+CLI input: `python array_calculator.py dolph_tschebyscheff -N 12 -sll 30 --norm center`
 
 Script:
 ```Python
-    # --- Triangular taper, save a polar plot to a file (headless-safe) ---
-    # python array_calculator.py triangular_array -N 16 --save tri.png --plot-style polar
-    # shell = ArrayCalculator(['triangular_array', '-N', '16', '--save', 'tri.png', '--plot-style', 'polar'])
-    # shell.main(shell.getArgs())
-
+shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '12', '-sll', '30', '--norm', 'center'])
+shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
+```sh
+[*] N = 12
+[*] Sidelobe level = 30.00 dB
+[*] Amplitudes (center-normalized) = [0.264, 0.377, 0.572, 0.763, 0.915, 1.000, 1.000, 0.915, 0.763, 0.572, 0.377, 0.264]
+[*] Element spacing d = 0.50 lambda
+[*] Directivity = 10.45
+[*] Directivity = 10.19 dB
 ```
 
-**Uniform array (reference case), physical spacing from frequency**
+**Triangular taper, save a polar plot to a file (headless-safe)**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+CLI input: `python array_calculator.py triangular_array -N 16 --save tri.png --plot-style polar`
 
 Script:
 ```Python
-
-    # --- Steer the beam to 60 degrees (works on any array) ---
-    # python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --scan 60 --verbose
-    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--scan', '60', '--verbose'])
-    # shell.main(shell.getArgs())
+shell = ArrayCalculator(['triangular_array', '-N', '16', '--save', 'tri.png', '--plot-style', 'polar'])
+shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
+```sh
+[*] N = 16
+[*] Amplitudes (normalized) = [0.125, 0.250, 0.375, 0.500, 0.625, 0.750, 0.875, 1.000, 1.000, 0.875, 0.750, 0.625, 0.500, 0.375, 0.250, 0.125]
+[*] Element spacing d = 0.50 lambda
+[*] HPBW = 8.65 deg
+[*] Directivity = 12.71
+[*] Directivity = 11.04 dB
 ```
 
-**Uniform array (reference case), physical spacing from frequency**
+**Steer the beam to 60 degrees (works on any array)**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+CLI input: `python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --scan 60 --verbose`
 
 Script:
 ```Python
-    # --- Ordinary endfire: steer to the array axis (use closer spacing) ---
-    # python array_calculator.py uniform_array -N 10 -d 0.25 --scan 0
-    # shell = ArrayCalculator(['uniform_array', '-N', '10', '-d', '0.25', '--scan', '0'])
-    # shell.main(shell.getArgs())
+shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--scan', '60', '--verbose'])
+shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
+```sh
+[*] N = 8
+[*] Sidelobe level = 25.00 dB
+[*] R (voltage ratio) = 17.78
+[*] z0 = 1.13
+[*] Amplitudes (raw) = [1.198, 1.852, 2.671, 3.170, 3.170, 2.671, 1.852, 1.198]
+[*] Amplitudes (edge-normalized) = [1.000, 1.546, 2.230, 2.647, 2.647, 2.230, 1.546, 1.000]
+[*] Element spacing d = 0.50 lambda
+[*] Directivity = 7.45
+[*] Directivity = 8.72 dB
 ```
 
-**Uniform array (reference case), physical spacing from frequency**
+**Ordinary endfire: steer to the array axis (use closer spacing)**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+CLI input: `python array_calculator.py uniform_array -N 10 -d 0.25 --scan 0`
 
 Script:
 ```Python
-    # --- Export the radiation pattern to CSV (with steering) ---
-    # python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --csv pattern.csv --scan 60
-    # shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--csv', 'pattern.csv', '--scan', '60'])
-    # shell.main(shell.getArgs())
-
+shell = ArrayCalculator(['uniform_array', '-N', '10', '-d', '0.25', '--scan', '0'])
+shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
-
+```sh
+[*] N = 10
+[*] Amplitudes (normalized) = [1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+[*] Element spacing d = 0.25 lambda
+[*] HPBW = 34.71 deg
+[*] Directivity = 5
+[*] Directivity = 6.99 dB
 ```
 
-**Uniform array (reference case), physical spacing from frequency**
+**Export the radiation pattern to CSV (with steering)**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+CLI input: `python array_calculator.py dolph_tschebyscheff -N 8 -sll 25 --csv pattern.csv --scan 60`
 
 Script:
 ```Python
-    # --- Return variables instead of printing, then read them back ---
-    # python array_calculator.py binomial_array -N 6 --variable_return
-    # shell = ArrayCalculator(['binomial_array', '-N', '6', '--variable_return'])
-    # shell.main(shell.getArgs())
-    # amps, hpbw_deg, directivity_db = shell.getCalcedParams()
-    # print("done!")
-
+shell = ArrayCalculator(['dolph_tschebyscheff', '-N', '8', '-sll', '25', '--csv', 'pattern.csv', '--scan', '60'])
+shell.main(shell.getArgs())
 ```
 Results:
 
-```bash
-
-
+```sh
+[*] N = 8
+[*] Sidelobe level = 25.00 dB
+[*] Amplitudes (edge-normalized) = [1.000, 1.546, 2.230, 2.647, 2.647, 2.230, 1.546, 1.000]
+[*] Element spacing d = 0.50 lambda
+[*] Directivity = 7.45
+[*] Directivity = 8.72 dB
+[*] Pattern CSV generated: pattern.csv
 ```
-**Uniform array (reference case), physical spacing from frequency**
 
-CLI input: `python array_calculator.py uniform_array -N 10 -f 3e9`
+The output `pattern.csv` has the columns `theta_deg`, `AF_linear`, `AF_dB`.
+
+**Return variables instead of printing, then read them back**
+
+CLI input: `python array_calculator.py binomial_array -N 6 --variable_return`
 
 Script:
 ```Python
-    #   # evaluate returns a results dict, not a tuple:
-    # shell = ArrayCalculator(['evaluate', '-g', './example_data/geometry.csv', '--variable_return'])
-    # shell.main(shell.getArgs())
-    # results = shell.getCalcedParams()        # results['peak_sidelobe_db'], etc.
-    # print(results)
+shell = ArrayCalculator(['binomial_array', '-N', '6', '--variable_return'])
+shell.main(shell.getArgs())
+amps, hpbw_deg, directivity_db = shell.getCalcedParams()
+print("done!")
 
 ```
 Results:
 
-```bash
-
-
+```sh
+done!
 ```
-   
- 
 
-   
-
+There is no print out of the variables `amps`, `hpbw_deg`, `directivity_db`, unelss they are explicitly printed out by the user. 
+The typical paramaters from the calculator are not displayed. 
 
 
+**Example of how evaluate returns a results dict, not a tuple**
 
+This example uses the provided `example_data/geometry.csv` file. 
+
+
+CLI input: `python array_calculator.py evaluate -g ./example_data/geometry.csv --variable_return`
+
+Script:
+```Python
+shell = ArrayCalculator(['evaluate', '-g', './example_data/geometry.csv', '--variable_return'])
+shell.main(shell.getArgs())
+results = shell.getCalcedParams()        # results['peak_sidelobe_db'], etc.
+print(results)
+```
+Results:
+
+```sh
+{'N': 8, 'positions': array([0. , 0.5, 1. , 1.5, 2. , 2.5, 3. , 3.5]), 'amplitudes': array([1., 1., 1., 1., 1., 1., 1., 1.]), 'phases': array([0., 0., 0., 0., 0., 0., 0., 0.]), 'theta_deg': array([0.000000e+00, 4.500000e-03, 9.000000e-03, ..., 1.799910e+02,
+1.799955e+02, 1.800000e+02], shape=(40001,)), 'af_norm': array([6.12323400e-17, 4.84473090e-09, 1.93789229e-08, ...,
+1.93789229e-08, 4.84473090e-09, 6.12323400e-17], shape=(40001,)), 'af_db': array([-240.        , -166.29460682, -154.25340732, ..., -154.25340732,
+-166.29460682, -240.        ], shape=(40001,)), 'peak_theta_deg': 90.0, 'hpbw_deg': 12.807000000000002, 'peak_sidelobe_db': -12.79734783921733, 'directivity': np.float64(8.0), 'directivity_db': 9.030899869919436}
+```
+
+ The resulting dict contains all data and the  parameters that are typically printed out in the display.
 
 
 
