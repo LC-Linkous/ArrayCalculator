@@ -122,3 +122,24 @@ if __name__ == "__main__":
 
     total = len(ARRAY_ARGS) * len(PLOT_STYLES)
     print("\n%d/%d combinations rendered." % (ok, total))
+
+# --- element-layout panel (--show-elements) ----------------------------------
+def test_show_elements_synthesis(tmp_path):
+    # A synthesis array with --show-elements should still produce a valid PNG.
+    out = os.path.join(str(tmp_path), "elem.png")
+    shell = ArrayCalculator(["hamming_array", "-N", "16", "--save", out,
+                             "--plot-style", "both", "--show-elements"])
+    shell.main(shell.getArgs())
+    assert _is_valid_png(out)
+
+
+def test_show_elements_evaluator(tmp_path):
+    # The evaluator passes real positions/phases into the element panel.
+    g = tmp_path / "g.csv"
+    g.write_text("position_lambda,amplitude,phase_deg\n"
+                 "0.0,1.0,0\n0.55,1.0,0\n1.15,1.0,0\n1.85,1.0,0\n")
+    out = os.path.join(str(tmp_path), "evel.png")
+    shell = ArrayCalculator(["evaluate", "-g", str(g), "--save", out,
+                             "--plot-style", "polar", "--show-elements"])
+    shell.main(shell.getArgs())
+    assert _is_valid_png(out)
