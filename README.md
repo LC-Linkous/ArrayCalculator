@@ -51,8 +51,8 @@ Woodward-Lawson designs are checked to approximate the requested pattern shape.
 * [File Structure](#file-structure)
 * [Usage](#usage)
     * [Common arguments](#common-arguments)
-* [Examples](#examples)
     * [CLI vs Scripting Comparison](#cli-vs-scripting-comparison)
+* [Examples](#examples)
     * [Beam steering and endfire](#beam-steering-and-endfire)
     * [Closed-form taper arrays](#closed-form-taper-arrays)
     * [Dolph-Tschebyscheff Usage](#dolph-tschebyscheff-usage)
@@ -266,13 +266,12 @@ of these.
                         (default center; dolph_tschebyscheff defaults to edge)
 ```
 
-## Examples
 
 ### CLI vs Scripting Comparison
 
 This section has example comparisons of what the CLI and scripting input 
 look like. This is typically used when integrating the calculator 
-into other programs without losing the CLI functionality or heavilty adapting
+into other programs without losing the CLI functionality or heavily adapting
 existing code. This is also common for manual unit testing.
 
 **Uniform array (reference case), physical spacing from frequency**
@@ -472,8 +471,8 @@ Results:
 done!
 ```
 
-There is no print out of the variables `amps`, `hpbw_deg`, `directivity_db`, unelss they are explicitly printed out by the user. 
-The typical paramaters from the calculator are not displayed. 
+There is no print out of the variables `amps`, `hpbw_deg`, `directivity_db`, unless they are explicitly printed out by the user. 
+The typical parameters from the calculator are not displayed. 
 
 
 **Example of how evaluate returns a results dict, not a tuple**
@@ -499,8 +498,10 @@ Results:
 -166.29460682, -240.        ], shape=(40001,)), 'peak_theta_deg': 90.0, 'hpbw_deg': 12.807000000000002, 'peak_sidelobe_db': -12.79734783921733, 'directivity': np.float64(8.0), 'directivity_db': 9.030899869919436}
 ```
 
- The resulting dict contains all data and the  parameters that are typically printed out in the display.
+ The resulting dict contains all data and the parameters that are typically printed out in the display.
 
+
+## Examples
 
 
 ### Beam steering and endfire
@@ -974,7 +975,7 @@ python array_calculator.py hamming_array -N 16 --save hamming_elements.png --sho
 # both views on top, element panel (with phase coloring) across the bottom
 python array_calculator.py hamming_array -N 16 --scan 60 --save steered.png --plot-style both --show-elements
 # evaluator geometry: the panel exposes the (possibly non-uniform) spacing
-python array_calculator.py evaluate -g exmple_data/geometry_nonuniform.csv --save geom.png --plot-style polar --show-elements
+python array_calculator.py evaluate -g example_data/geometry_nonuniform.csv --save geom.png --plot-style polar --show-elements
 ```
 
 For an equally spaced broadside array the panel is a simple even row of stems;
