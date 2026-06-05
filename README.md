@@ -1,11 +1,9 @@
 # ArrayCalculator
 
+<p align="center"> <img src="media/example_hamming_steered.png" height="300"><br></p>
 
-## NOT STABLE, NOT COMPLETE
 
-A CLI-based, AntennaCAT-compatible array calculator, synthesizer, and evaluation tool. 
-
-It is written as an [AntennaCAT](https://github.com/LC-Linkous/AntennaCalculationAutotuningTool) compatible tool, similar to the CLI interface of the [AntennaCalculator](https://github.com/Dollarhyde/AntennaCalculator). 
+A CLI-based, AntennaCAT-compatible array calculator, synthesizer, and evaluation tool. The ArrayCalculator is written as an [AntennaCAT](https://github.com/LC-Linkous/AntennaCalculationAutotuningTool) compatible tool, similar to the CLI interface of the [AntennaCalculator](https://github.com/Dollarhyde/AntennaCalculator). 
 
 This tool is capable of calculating the radiation pattern and beam characteristics (half-power beamwidth, peak sidelobe level, and directivity) of a linear array from its element geometry and excitation. Complementary to that, the synthesis subcommands solve the inverse problem: given a design goal (sidelobe level, taper, or beam shape), they compute the excitation coefficients. The evaluate mode is the direct/analysis tool; given known inputs (positions, amplitudes, phases), it reports the resulting pattern. Both command paths share one array-factor engine, so synthesized designs are also analyzed before their beam characteristics are reported. 
 
@@ -53,6 +51,8 @@ Woodward-Lawson designs are checked to approximate the requested pattern shape.
 * [File Structure](#file-structure)
 * [Usage](#usage)
     * [Common arguments](#common-arguments)
+* [Examples](#examples)
+    * [CLI vs Scripting Comparison](#cli-vs-scripting-comparison)
     * [Beam steering and endfire](#beam-steering-and-endfire)
     * [Closed-form taper arrays](#closed-form-taper-arrays)
     * [Dolph-Tschebyscheff Usage](#dolph-tschebyscheff-usage)
@@ -61,8 +61,9 @@ Woodward-Lawson designs are checked to approximate the requested pattern shape.
     * [Kaiser Array Usage](#kaiser-array-usage)
     * [Woodward-Lawson Usage](#woodward-lawson-usage)
     * [Evaluating an arbitrary geometry](#evaluating-an-arbitrary-geometry)
-* [Examples](#examples)
+    * [Matplotlib Visualization](#matplotlib-visualization)
 * [Tests](#tests)
+* [Architecture and Flow](#architecture-and-flow)
 * [Development and future work](#development-and-future-work)
 * [References](#references)
 
@@ -255,6 +256,9 @@ of these.
   --plot-style {polar,rect,both}
                         Plot layout: polar dial, rectangular dB, or both
                         (default both)
+  --show-elements       Add an element-layout panel beneath the pattern plot
+                        (amplitude as stem height, per-element phase as marker
+                        color); composes with --plot-style
   --save SAVE           Save the plot to this path instead of opening a window
                         (implies --plot; works without a display)
   --variable_return     Return variables instead of printing
@@ -262,10 +266,12 @@ of these.
                         (default center; dolph_tschebyscheff defaults to edge)
 ```
 
+## Examples
+
 ### CLI vs Scripting Comparison
 
 This section has example comparisons of what the CLI and scripting input 
-look like. This is only typically used when integrating the calculator 
+look like. This is typically used when integrating the calculator 
 into other programs without losing the CLI functionality or heavilty adapting
 existing code. This is also common for manual unit testing.
 
@@ -353,13 +359,13 @@ Results:
 [*] Directivity = 10.19 dB
 ```
 
-**Triangular taper, save a polar plot to a file (headless-safe)**
+**Triangular taper, save a polar plot with the element-layout panel (headless-safe)**
 
-CLI input: `python array_calculator.py triangular_array -N 16 --save tri.png --plot-style polar`
+CLI input: `python array_calculator.py triangular_array -N 16 --save tri.png --plot-style polar --show-elements`
 
 Script:
 ```Python
-shell = ArrayCalculator(['triangular_array', '-N', '16', '--save', 'tri.png', '--plot-style', 'polar'])
+shell = ArrayCalculator(['triangular_array', '-N', '16', '--save', 'tri.png', '--plot-style', 'polar', '--show-elements'])
 shell.main(shell.getArgs())
 ```
 Results:
@@ -372,6 +378,15 @@ Results:
 [*] Directivity = 12.71
 [*] Directivity = 11.04 dB
 ```
+
+`--show-elements` adds a panel beneath the pattern showing the element layout:
+each element as a stem at its position (in wavelengths) with height equal to its
+normalized amplitude, so the taper shape is visible directly. When any element
+carries a nonzero excitation phase (e.g. a steered array), the markers are
+colored by phase. The flag is purely additive and off by default; without it the
+plot is just the pattern. It composes with `--plot-style`, so `--plot-style both
+--show-elements` puts the polar and rectangular patterns on top and the element
+panel across the bottom.
 
 **Steer the beam to 60 degrees (works on any array)**
 
@@ -554,6 +569,7 @@ python array_calculator.py triangular_array -N 16
 python array_calculator.py bartlett_array -N 16
 python array_calculator.py blackman_array -N 20 --plot --plot-style polar
 python array_calculator.py hamming_array -N 16 --save hamming.png
+python array_calculator.py hamming_array -N 16 --save hamming.png --show-elements
 ```
 
 ### Dolph-Tschebyscheff Usage
@@ -913,19 +929,26 @@ theta_deg,AF_linear,AF_dB
 ```
 
 
-**Matplotlib visualization:**
+### Matplotlib Visualization
 
+
+The polar view shows the 0-180 deg half-plane mirrored about boresight (the
+beam points up at 90 deg); the rectangular view plots normalized |AF| in dB
+against theta. When a sidelobe level applies (Dolph, Taylor), it is drawn as a
+dashed reference line.
+
+## Visualization
+
+**Matplotlib visualization:**
 The `--plot` flag renders the radiation pattern; `--plot-style` selects the
 layout and `--save` writes it to a file (which also works on a headless machine,
 where opening a window would otherwise fail):
 
-```
+```sh
 # open an interactive window with both polar and rectangular views
 python array_calculator.py dolph_tschebyscheff -N 10 -sll 26 --plot
-
 # just the polar dial
 python array_calculator.py hamming_array -N 20 --plot --plot-style polar
-
 # save a rectangular dB plot to a file, no display needed
 python array_calculator.py blackman_array -N 24 --save blackman.png --plot-style rect
 ```
@@ -935,13 +958,49 @@ beam points up at 90 deg); the rectangular view plots normalized |AF| in dB
 against theta. When a sidelobe level applies (Dolph, Taylor), it is drawn as a
 dashed reference line.
 
-<!-- Add output images below. Suggested captions: -->
 
-<!-- Dolph-Tschebyscheff, both views -->
-![Dolph-Tschebyscheff radiation pattern, polar and rectangular](media/dolph_both.png)
+**Element layout panel (`--show-elements`):**
+Adding `--show-elements` places an element-layout panel beneath the pattern. Each
+element is drawn as a stem at its position along the array axis (in wavelengths)
+with height equal to its normalized amplitude, so the excitation taper is visible
+directly; when any element carries a nonzero phase (e.g. a steered or
+evaluator-supplied array), the markers are colored by phase. The flag is purely
+additive and off by default, and it composes with any `--plot-style`:
 
-<!-- A low-sidelobe taper, polar -->
-![Blackman radiation pattern](media/blackman_polar.png)
+
+```sh
+# taper shape under the pattern
+python array_calculator.py hamming_array -N 16 --save hamming_elements.png --show-elements
+# both views on top, element panel (with phase coloring) across the bottom
+python array_calculator.py hamming_array -N 16 --scan 60 --save steered.png --plot-style both --show-elements
+# evaluator geometry: the panel exposes the (possibly non-uniform) spacing
+python array_calculator.py evaluate -g exmple_data/geometry_nonuniform.csv --save geom.png --plot-style polar --show-elements
+```
+
+For an equally spaced broadside array the panel is a simple even row of stems;
+its value shows for tapered, steered, or non-uniformly spaced geometries, where
+the amplitude shape, phase progression, or spacing irregularity would otherwise
+be invisible in the pattern alone.
+
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="media/example_tri_polar.png" height="260"><br>
+      <em>Triangular array, polar</em>
+    </td>
+    <td align="center" width="50%">
+      <img src="media/example_evaluated_nonuniform_geometry.png" height="260"><br>
+      <em>Evaluated non-uniform geometry: pattern (top) + stem plot (bottom)</em>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="media/example_hamming_steered.png" height="300"><br>
+      <em>Steered Hamming array, N=16 — polar + cartesian (top), stem plot with phase (bottom)</em>
+    </td>
+  </tr>
+</table>
 
 
 ## Tests
