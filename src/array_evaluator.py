@@ -22,13 +22,13 @@
 #       and prints / plots / re-exports the analysis.
 #
 #   Directivity is the array-factor (isotropic-element) value from the
-#   pattern integral, valid for arbitrary (non-uniform) geometries; the
-#   simple 2 N d / lambda closed form does not apply once spacing is
-#   unequal, so it is not used here.
+#   pattern integral (ArrayCommon.directivity_integral), valid for
+#   arbitrary (non-uniform) geometries; the simple 2 N d / lambda closed
+#   form does not apply once spacing is unequal, so it is not used here.
 ##--------------------------------------------------------------------\
 
 import csv as _csv
-from math import log10, sqrt, pi, radians, degrees
+from math import log10, radians
 import numpy as np
 
 from array_common import ArrayCommon
@@ -71,9 +71,10 @@ class ArrayEvaluator(ArrayCommon):
 
         peak = int(np.argmax(af_norm))
         peak_theta = float(theta[peak])
-        hpbw = self._hpbw_from_pattern(theta, af_norm, peak)
-        sll = self._peak_sidelobe(theta, af_db, peak)
-        D0 = self._directivity_integral(amplitudes, positions, phases)
+        hpbw = self.hpbw_deg(amplitudes, positions=positions, phases=phases)
+        sll = self.peak_sidelobe(theta, af_db, peak)
+        D0 = self.directivity_integral(amplitudes, positions=positions,
+                                       phases=phases)
 
         return {
             "N": N,
@@ -84,52 +85,13 @@ class ArrayEvaluator(ArrayCommon):
             "af_norm": af_norm,
             "af_db": af_db,
             "peak_theta_deg": peak_theta,
-            "hpbw_deg": (degrees(hpbw) if hpbw is not None else None),
+            "hpbw_deg": hpbw,
+            # Includes grating lobes and lobes at 0/180 deg: an optimizer
+            # using this as a fitness term is penalized for grating lobes.
             "peak_sidelobe_db": sll,
             "directivity": D0,
             "directivity_db": (10.0 * log10(D0) if D0 > 0 else float("nan")),
         }
-
-    # --- helpers -------------------------------------------------------
-    def _hpbw_from_pattern(self, theta, af_norm, peak):
-        half = 1.0 / sqrt(2.0)
-        left = peak
-        while left > 0 and af_norm[left] > half:
-            left -= 1
-        right = peak
-        while right < len(af_norm) - 1 and af_norm[right] > half:
-            right += 1
-        if left == 0 or right == len(af_norm) - 1:
-            return None  # beam runs off the visible region; HPBW ill-defined
-        return radians(theta[right] - theta[left])
-
-    def _peak_sidelobe(self, theta, af_db, peak):
-        # nearest null on each side of the main beam, then the highest local
-        # maximum outside that main-beam region.
-        n = len(af_db)
-        li = peak
-        while li > 0 and af_db[li - 1] <= af_db[li]:
-            li -= 1
-        ri = peak
-        while ri < n - 1 and af_db[ri + 1] <= af_db[ri]:
-            ri += 1
-        peaks = [af_db[i] for i in range(1, n - 1)
-                 if (i < li or i > ri)
-                 and af_db[i] >= af_db[i - 1] and af_db[i] >= af_db[i + 1]
-                 and af_db[i] < -0.5]
-        return float(max(peaks)) if peaks else float("-inf")
-
-    def _directivity_integral(self, amps, positions, phases, n=200001):
-        # D = 2 |AF(peak)|^2 / integral_0^pi |AF|^2 sin(theta) dtheta,
-        # isotropic elements. Valid for arbitrary positions/phases.
-        th = np.linspace(1e-6, np.pi - 1e-6, n)
-        arg = (2.0 * pi * positions[None, :] * np.cos(th)[:, None]
-               + phases[None, :])
-        af = np.abs((amps[None, :] * np.exp(1j * arg)).sum(axis=1))
-        p = af ** 2
-        peak_power = p.max()
-        integral = np.trapezoid(p * np.sin(th), th)
-        return 2.0 * peak_power / integral if integral > 0 else 0.0
 
     # --- CSV geometry I/O ---------------------------------------------
     @staticmethod
@@ -152,6 +114,11 @@ class ArrayEvaluator(ArrayCommon):
                 positions.append(float(row[pcol]))
                 amps.append(float(row[acol]) if acol and row.get(acol) not in (None, "") else 1.0)
                 phases.append(radians(float(row[qcol])) if qcol and row.get(qcol) not in (None, "") else 0.0)
+        if len(positions) < 1:
+            raise ValueError("geometry CSV %s has no element rows" % filename)
+        if len(set(positions)) != len(positions):
+            raise ValueError("geometry CSV %s has duplicate element positions"
+                             % filename)
         return (np.array(positions), np.array(amps), np.array(phases))
 
     # --- driver (CLI) --------------------------------------------------
@@ -170,19 +137,17 @@ class ArrayEvaluator(ArrayCommon):
             if res["hpbw_deg"] is not None:
                 self.value_print("HPBW", res["hpbw_deg"], "deg")
             else:
-                print("[*] HPBW = n/a (beam not a single clean peak in [0,180])")
+                print("[*] HPBW = n/a (no half-power crossing)")
             self.value_print("Peak sidelobe", res["peak_sidelobe_db"], "dB")
+            if res["peak_sidelobe_db"] > -3.0:
+                print("[!] Warning: grating lobe present (a second lobe within "
+                      "3 dB of the main beam).")
             self.value_print("Directivity", res["directivity"])
             self.value_print("Directivity", res["directivity_db"], "dB")
 
         if getattr(self.args, "csv", None):
-            theta, af_norm, af_db = (res["theta_deg"], res["af_norm"], res["af_db"])
-            with open(self.args.csv, "w", newline="") as f:
-                w = _csv.writer(f)
-                w.writerow(["theta_deg", "AF_linear", "AF_dB"])
-                for t, a, d in zip(theta, af_norm, af_db):
-                    w.writerow(["{:.3f}".format(t), "{:.6f}".format(a), "{:.4f}".format(d)])
-            print("[*] Pattern CSV generated: " + self.args.csv)
+            self.export_pattern_csv(self.args.csv, amps, positions=positions,
+                                    phases=phases, n_points=len(res["theta_deg"]))
         if getattr(self.args, "plot", False):
             self.plot_pattern(amps, title="Evaluated geometry (N=%d)" % res["N"],
                               style=getattr(self.args, "plot_style", "both"),

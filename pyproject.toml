@@ -1,26 +1,32 @@
 [project]
 name = "arraycalculator"
-version = "0.1.0"
+version = "1.0.0"
 description = "AntennaCAT-compatible linear antenna array synthesis calculator"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "numpy",
-    "pint",
+    # numpy 2.0 is the first release with np.trapezoid (used by the tests).
+    "numpy>=2.0",
+    "pint>=0.24",
 ]
+
+[project.scripts]
+# `arraycalculator <subcommand> ...` once the wheel is installed; same
+# arguments as `python src/array_calculator.py <subcommand> ...`.
+arraycalculator = "array_calculator:main"
 
 [project.optional-dependencies]
 # matplotlib is only needed for the --plot / --save flags; the core
 # calculator (synthesis, CSV export) runs without it.
 plot = [
-    "matplotlib",
+    "matplotlib>=3.8",
 ]
 
 [dependency-groups]
 # Dev tooling, installed by `uv sync` but not shipped to consumers.
 dev = [
-    "pytest",
-    "matplotlib",
+    "pytest>=8",
+    "matplotlib>=3.8",
 ]
 
 [build-system]

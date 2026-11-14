@@ -35,6 +35,10 @@ class DolphTschebyscheff(ArrayCommon):
         return 10.0 ** (sll_db / 20.0)
 
     def z0(self, N, R):
+        if N < 2:
+            raise ValueError("Dolph-Tschebyscheff needs N >= 2")
+        if R <= 1.0:
+            raise ValueError("sidelobe level must be > 0 dB")
         # Scaling parameter mapping the Tschebyscheff polynomial onto the
         # array factor: z0 = cosh( (1/(N-1)) * arccosh(R) ).
         return np.cosh(np.arccosh(R) / (N - 1))
@@ -88,7 +92,12 @@ class DolphTschebyscheff(ArrayCommon):
 
         amps_norm = self.normalize(amps)
 
-        D0 = self.directivity(N, R)
+        if self.closed_form_valid():
+            D0 = self.directivity(N, R)          # Balanis closed form
+        else:
+            # The beam-broadening factor in the closed form assumes
+            # d = lambda/2 broadside; otherwise integrate the pattern.
+            D0 = self.directivity_integral(amps, d_over_lambda=d_over_lambda)
         D0_db = 10.0 * log10(D0)
 
         if not self.args.variable_return:
@@ -102,6 +111,7 @@ class DolphTschebyscheff(ArrayCommon):
             self.report_spacing(d_over_lambda)
             self.value_print("Directivity", D0)
             self.value_print("Directivity", D0_db, "dB")
+            self.warn_grating_lobes(amps)
 
         if getattr(self.args, "csv", None):
             self.export_pattern_csv(self.args.csv, amps_norm)

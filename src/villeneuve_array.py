@@ -41,6 +41,12 @@ class VilleneuveArray(ArrayCommon):
         # z = exp(j psi); it has exactly N-1 zeros on the unit circle,
         # symmetric about psi = pi. We place them and recover the element
         # excitations as the polynomial coefficients.
+        if N < 2 or sll_db <= 0:
+            raise ValueError("Villeneuve needs N >= 2 and a positive SLL")
+        if not 1 <= nbar <= (N + 1) // 2:
+            raise ValueError("nbar must be in 1..(N+1)//2 = %d for N=%d "
+                             "(inner zeros would overlap their mirror images)"
+                             % ((N + 1) // 2, N))
         R = self.voltage_ratio(sll_db)
         P = N - 1                      # number of pattern zeros
 
@@ -76,21 +82,12 @@ class VilleneuveArray(ArrayCommon):
         return amps, R, sigma
 
     def directivity(self, N, d_over_lambda, amps):
-        amps = np.asarray(amps, dtype=float)
-        eff = (amps.sum() ** 2) / (len(amps) * np.sum(amps ** 2))
-        return eff * 2.0 * N * d_over_lambda
+        # Exact pattern-integral directivity: correct for any spacing
+        # (including grating lobes) and any --scan angle.
+        return self.directivity_integral(amps, d_over_lambda=d_over_lambda)
 
     def hpbw(self, N, amps):
-        theta, af_norm, _ = self.pattern_sweep(amps, n_points=40001)
-        half = 1.0 / sqrt(2.0)
-        peak = np.argmax(af_norm)
-        left = peak
-        while left > 0 and af_norm[left] > half:
-            left -= 1
-        right = peak
-        while right < len(af_norm) - 1 and af_norm[right] > half:
-            right += 1
-        return radians(theta[right] - theta[left])
+        return self.hpbw_rad(amps)
 
     # --- driver --------------------------------------------------------
     def villeneuve_array_calculator(self):
@@ -116,9 +113,10 @@ class VilleneuveArray(ArrayCommon):
                 self.list_print("Amplitudes (raw)", amps)
             self.list_print("Amplitudes (normalized)", amps_norm)
             self.report_spacing(d_over_lambda)
-            self.value_print("HPBW", degrees(hpbw_rad), "deg")
+            self.print_hpbw(hpbw_rad)
             self.value_print("Directivity", D0)
             self.value_print("Directivity", D0_db, "dB")
+            self.warn_grating_lobes(amps)
 
         if getattr(self.args, "csv", None):
             self.export_pattern_csv(self.args.csv, amps_norm)
@@ -128,4 +126,4 @@ class VilleneuveArray(ArrayCommon):
                               sll_db=sll_db)
 
         if self.args.variable_return:
-            return amps_norm, degrees(hpbw_rad), D0_db
+            return amps_norm, self.hpbw_out(hpbw_rad), D0_db

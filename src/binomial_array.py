@@ -29,7 +29,8 @@ class BinomialArray(ArrayCommon):
 
     def hpbw(self, N):
         # Half-power beamwidth for a binomial array with d = lambda/2,
-        # HPBW ~= 1.06 / sqrt(N-1) radians (Balanis).
+        # broadside: HPBW ~= 1.06 / sqrt(N-1) radians (Balanis). The driver
+        # uses the pattern-derived HPBW for any other spacing or scan.
         return 1.06 / sqrt(N - 1)
 
     def directivity(self, N, d_over_lambda):
@@ -48,8 +49,15 @@ class BinomialArray(ArrayCommon):
 
         amps = self.amplitudes(N)
         amps_norm = self.normalize(amps)
-        hpbw_rad = self.hpbw(N)
-        D0 = self.directivity(N, d_over_lambda)
+        if self.closed_form_valid():
+            # Textbook closed forms (d = lambda/2, broadside), matching the
+            # EGRE 540 notes.
+            hpbw_rad = self.hpbw(N)
+            D0 = self.directivity(N, d_over_lambda)
+        else:
+            # Outside the closed forms' assumptions, read both off the pattern.
+            hpbw_rad = self.hpbw_rad(amps)
+            D0 = self.directivity_integral(amps, d_over_lambda=d_over_lambda)
         D0_db = 10.0 * log10(D0)
 
         if not self.args.variable_return:
@@ -58,9 +66,10 @@ class BinomialArray(ArrayCommon):
                 self.list_print("Amplitudes (raw)", amps)
             self.list_print("Amplitudes (normalized)", amps_norm)
             self.report_spacing(d_over_lambda)        # prints lambda + d if -f given
-            self.value_print("HPBW", degrees(hpbw_rad), "deg")
+            self.print_hpbw(hpbw_rad)
             self.value_print("Directivity", D0)
             self.value_print("Directivity", D0_db, "dB")
+            self.warn_grating_lobes(amps)
 
         # pattern emission (csv now; plot is a future hook)
         if getattr(self.args, "csv", None):
@@ -69,4 +78,4 @@ class BinomialArray(ArrayCommon):
             self.plot_pattern(amps_norm, title="Binomial Array (N=%d)" % N)
 
         if self.args.variable_return:
-            return amps_norm, degrees(hpbw_rad), D0_db
+            return amps_norm, self.hpbw_out(hpbw_rad), D0_db

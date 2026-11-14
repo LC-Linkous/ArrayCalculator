@@ -88,21 +88,12 @@ class WindowedArray(ArrayCommon):
 
     def hpbw(self, N, taper=None):
         amps = self.amplitudes(N, taper)
-        theta, af_norm, _ = self.pattern_sweep(amps, n_points=40001)
-        half = 1.0 / sqrt(2.0)
-        peak = np.argmax(af_norm)
-        left = peak
-        while left > 0 and af_norm[left] > half:
-            left -= 1
-        right = peak
-        while right < len(af_norm) - 1 and af_norm[right] > half:
-            right += 1
-        return radians(theta[right] - theta[left])
+        return self.hpbw_rad(amps)
 
     def directivity(self, N, d_over_lambda, amps):
-        amps = np.asarray(amps, dtype=float)
-        eff = (amps.sum() ** 2) / (len(amps) * np.sum(amps ** 2))
-        return eff * 2.0 * N * d_over_lambda
+        # Exact pattern-integral directivity: correct for any spacing
+        # (including grating lobes) and any --scan angle.
+        return self.directivity_integral(amps, d_over_lambda=d_over_lambda)
 
     # --- driver --------------------------------------------------------
     def windowed_array_calculator(self):
@@ -120,9 +111,10 @@ class WindowedArray(ArrayCommon):
             self.value_print("N", N)
             self.list_print("Amplitudes (normalized)", amps_norm)
             self.report_spacing(d_over_lambda)
-            self.value_print("HPBW", degrees(hpbw_rad), "deg")
+            self.print_hpbw(hpbw_rad)
             self.value_print("Directivity", D0)
             self.value_print("Directivity", D0_db, "dB")
+            self.warn_grating_lobes(amps)
 
         if getattr(self.args, "csv", None):
             self.export_pattern_csv(self.args.csv, amps_norm)
@@ -132,4 +124,4 @@ class WindowedArray(ArrayCommon):
                               style=getattr(self.args, "plot_style", "both"))
 
         if self.args.variable_return:
-            return amps_norm, degrees(hpbw_rad), D0_db
+            return amps_norm, self.hpbw_out(hpbw_rad), D0_db

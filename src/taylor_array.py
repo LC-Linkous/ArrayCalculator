@@ -42,6 +42,8 @@ class TaylorArray(ArrayCommon):
         # where F(m) are the Taylor coefficients built from the pattern zeros
         # and p is the normalized element position. Verified numerically to
         # place the near-in sidelobes at the design level with decaying tails.
+        if N < 2 or sll_db <= 0 or nbar < 1:
+            raise ValueError("Taylor needs N >= 2, a positive SLL and nbar >= 1")
         R = self.voltage_ratio(sll_db)
         A = np.arccosh(R) / pi
         sigma = nbar / sqrt(A ** 2 + (nbar - 0.5) ** 2)
@@ -66,24 +68,13 @@ class TaylorArray(ArrayCommon):
         return np.abs(amps), R, sigma
 
     def directivity(self, N, d_over_lambda, amps):
-        # Aperture (taper) efficiency from the excitation, times the uniform
-        # directivity 2 N d/lambda. D0 = (sum a)^2 / (N sum a^2) * 2 N d/lambda.
-        amps = np.asarray(amps, dtype=float)
-        eff = (amps.sum() ** 2) / (len(amps) * np.sum(amps ** 2))
-        return eff * 2.0 * N * d_over_lambda
+        # Exact pattern-integral directivity: correct for any spacing
+        # (including grating lobes) and any --scan angle.
+        return self.directivity_integral(amps, d_over_lambda=d_over_lambda)
 
     def hpbw(self, N, amps):
         # Computed directly from the array factor (-3 dB crossings).
-        theta, af_norm, _ = self.pattern_sweep(amps, n_points=40001)
-        half = 1.0 / sqrt(2.0)
-        peak = np.argmax(af_norm)
-        left = peak
-        while left > 0 and af_norm[left] > half:
-            left -= 1
-        right = peak
-        while right < len(af_norm) - 1 and af_norm[right] > half:
-            right += 1
-        return radians(theta[right] - theta[left])
+        return self.hpbw_rad(amps)
 
     # --- driver --------------------------------------------------------
     def taylor_array_calculator(self):
@@ -109,9 +100,10 @@ class TaylorArray(ArrayCommon):
                 self.list_print("Amplitudes (raw)", amps)
             self.list_print("Amplitudes (normalized)", amps_norm)
             self.report_spacing(d_over_lambda)
-            self.value_print("HPBW", degrees(hpbw_rad), "deg")
+            self.print_hpbw(hpbw_rad)
             self.value_print("Directivity", D0)
             self.value_print("Directivity", D0_db, "dB")
+            self.warn_grating_lobes(amps)
 
         if getattr(self.args, "csv", None):
             self.export_pattern_csv(self.args.csv, amps_norm)
@@ -121,4 +113,4 @@ class TaylorArray(ArrayCommon):
                               sll_db=sll_db)
 
         if self.args.variable_return:
-            return amps_norm, degrees(hpbw_rad), D0_db
+            return amps_norm, self.hpbw_out(hpbw_rad), D0_db

@@ -11,6 +11,8 @@
 
 import argparse
 
+__version__ = "1.0.0"   # keep in step with pyproject.toml
+
 from binomial_array import BinomialArray
 from dolph_tschebyscheff import DolphTschebyscheff
 from uniform_array import UniformArray
@@ -46,25 +48,18 @@ SIMPLE_ARRAYS = {
 }
 
 
-def _add_common_args(p, require_elements=True):
+def _add_common_args(p, synthesis=True):
     # The argument set every array subcommand shares. Centralized here so
     # all arrays stay in parity (spacing, steering, units, output, plotting)
-    # and new flags only have to be added in one place.
+    # and new flags only have to be added in one place. synthesis=False
+    # (the evaluator) leaves out the geometry/normalization flags, because
+    # the geometry CSV supplies positions and phases; accepting them and
+    # silently ignoring them would mislead.
     p.add_argument('--help', action='help', default=argparse.SUPPRESS,
                    help='Show this help message and exit')
     p.add_argument('--verbose', action='store_true')
-    p.add_argument('-N', '--elements', type=int, required=require_elements,
-                   help='Number of array elements')
-    p.add_argument('-f', '--frequency', type=float, required=False,
-                   help='Frequency in Hz (optional; gives physical spacing)')
-    p.add_argument('-d', '--spacing', type=float, required=False, default=0.5,
-                   help='Element spacing as a fraction of wavelength (default 0.5)')
-    p.add_argument('--scan', type=float, required=False, default=90.0,
-                   help='Beam steering angle in degrees (default 90 = broadside)')
-    p.add_argument('-u', '--unit', type=str,
-                   choices=['meter', 'centimeter', 'millimeter', 'inch'],
-                   required=False, default='centimeter',
-                   help='Unit of measurement')
+    if synthesis:
+        _add_geometry_args(p)
     p.add_argument('--csv', type=str, required=False,
                    help='Export radiation pattern to CSV file')
     p.add_argument('--plot', action='store_true', required=False, default=False,
@@ -81,10 +76,64 @@ def _add_common_args(p, require_elements=True):
                         '(implies --plot; works without a display)')
     p.add_argument('--variable_return', action='store_true', required=False, default=False,
                    help='Return Variables instead of printing')
+
+
+def _add_geometry_args(p):
+    # Flags that describe a synthesized, equally spaced array.
+    p.add_argument('-N', '--elements', type=int, required=True,
+                   help='Number of array elements (>= 2)')
+    p.add_argument('-f', '--frequency', type=float, required=False,
+                   help='Frequency in Hz (optional; gives physical spacing)')
+    p.add_argument('-d', '--spacing', type=float, required=False, default=0.5,
+                   help='Element spacing as a fraction of wavelength (default 0.5)')
+    p.add_argument('--scan', type=float, required=False, default=90.0,
+                   help='Beam steering angle in degrees (default 90 = broadside)')
+    p.add_argument('-u', '--unit', type=str,
+                   choices=['meter', 'centimeter', 'millimeter', 'inch'],
+                   required=False, default='centimeter',
+                   help='Unit of measurement')
     p.add_argument('--norm', type=str, choices=['edge', 'center'],
                    required=False, default='center',
                    help='Normalize amplitudes to the edge or center element '
                         '(default center; Dolph-Tschebyscheff conventionally uses edge)')
+
+
+def _validate(parser, args):
+    # Reject inputs the synthesis math cannot handle, with a clear message
+    # instead of a NaN, ZeroDivisionError or silently corrupted result.
+    name = args.subparser_name
+
+    def need(ok, msg):
+        if not ok:
+            parser.error(msg)
+
+    if name == 'evaluate':
+        return
+    N = args.elements
+    need(N >= 2, "-N/--elements must be at least 2 (got %d)" % N)
+    need(args.spacing > 0, "-d/--spacing must be > 0 (got %g)" % args.spacing)
+    need(0.0 <= args.scan <= 180.0, "--scan must be within 0..180 deg (got %g)" % args.scan)
+    if args.frequency is not None:
+        need(args.frequency > 0, "-f/--frequency must be > 0 (got %g)" % args.frequency)
+    if hasattr(args, 'sidelobe_level'):
+        need(args.sidelobe_level > 0,
+             "-sll must be a positive dB value, e.g. 26 (got %g)" % args.sidelobe_level)
+    if hasattr(args, 'nbar'):
+        need(args.nbar >= 1, "-nbar must be >= 1 (got %d)" % args.nbar)
+    if name == 'villeneuve_array':
+        nmax = (N + 1) // 2
+        need(args.nbar <= nmax,
+             "-nbar must be <= (N+1)//2 = %d for N=%d (got %d): the inner "
+             "zeros would overlap their mirror images" % (nmax, N, args.nbar))
+    if name == 'kaiser_array':
+        need(args.beta >= 0, "-beta must be >= 0 (got %g)" % args.beta)
+    if name == 'woodward_lawson_array':
+        need(args.sector > 0, "--sector must be > 0 deg (got %g)" % args.sector)
+        need(args.floor >= 0, "--floor must be >= 0 (got %g)" % args.floor)
+        if args.shape == 'cosecant_squared':
+            need(abs(args.scan - 90.0) > 1e-9,
+                 "cosecant_squared needs --scan away from 90 (the beam peak "
+                 "must sit off the horizon, e.g. --scan 80)")
 
 
 class ArrayCalculator:
@@ -92,7 +141,7 @@ class ArrayCalculator:
         main_parser = argparse.ArgumentParser(description='Array Calculator', add_help=False)
         main_parser.add_argument('--help', action='help', default=argparse.SUPPRESS,
                                  help='Show this help message and exit')
-        main_parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+        main_parser.add_argument('--version', action='version', version='%(prog)s ' + __version__)
 
         subparsers = main_parser.add_subparsers(help='sub-command help',
                                                 dest='subparser_name')
@@ -101,6 +150,15 @@ class ArrayCalculator:
         for name in SIMPLE_ARRAYS:
             sp = subparsers.add_parser(name, add_help=False)
             _add_common_args(sp)
+
+        # Raised-cosine tapers also take --window-def (sampling convention).
+        for name in ('hann_array', 'hamming_array', 'blackman_array'):
+            subparsers.choices[name].add_argument(
+                '--window-def', dest='window_def', type=str,
+                choices=['aperture', 'symmetric'], default='aperture',
+                help='Taper sampling: aperture = n/N (default; edge elements '
+                     'stay excited), symmetric = n/(N-1) (DSP window; Hann '
+                     'edge elements go to zero)')
 
         # DOLPH-TSCHEBYSCHEFF ARRAY (adds -sll and --norm)
         dt = subparsers.add_parser('dolph_tschebyscheff', add_help=False)
@@ -149,11 +207,14 @@ class ArrayCalculator:
 
         # EVALUATOR (scores an arbitrary geometry from a CSV; not a synthesis)
         ev = subparsers.add_parser('evaluate', add_help=False)
-        _add_common_args(ev, require_elements=False)
+        _add_common_args(ev, synthesis=False)
         ev.add_argument('-g', '--geometry', type=str, required=True,
                         help='Geometry CSV: position_lambda[, amplitude][, phase_deg]')
 
         self.args = main_parser.parse_args(a)
+        if self.args.subparser_name is None:
+            main_parser.error("choose an array subcommand (see --help)")
+        _validate(subparsers.choices[self.args.subparser_name], self.args)
         # --save implies --plot so the user doesn't have to pass both.
         if getattr(self.args, 'save', None):
             self.args.plot = True
@@ -198,11 +259,16 @@ class ArrayCalculator:
         return self.calcedParams
 
 
-if __name__ == "__main__":
+def main(argv=None):
+    # Console-script entry point (`arraycalculator ...`) and `python
+    # array_calculator.py ...`. Returns the --variable_return result, if any.
+    shell = ArrayCalculator(argv)
+    shell.main(shell.getArgs())
+    return shell.getCalcedParams()
 
-    shell = ArrayCalculator()
-    args = shell.getArgs()
-    shell.main(args)
+
+if __name__ == "__main__":
+    main()
 
     # CLI examples:
     # Binomial array, print variables:

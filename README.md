@@ -19,7 +19,8 @@ The calculator features the following synthesis methods:
 * Bartlett taper (zero-endpoint triangular, ~ -26 dB)
 * Cosine taper (~ -23 dB)
 * Cosine-squared taper (~ -31 dB)
-* Hann taper (~ -31 dB; mathematically identical to cosine-squared)
+* Hann taper (~ -31 dB; identical to cosine-squared with the default
+  `--window-def aperture` sampling)
 * Hamming taper (~ -41 dB; pedestal tuned to cancel the nearest sidelobe)
 * Blackman taper (~ -58 dB; three-term cosine, lowest sidelobes of the set)
 * Kaiser taper (parametric; one shape parameter beta trades beamwidth against
@@ -72,22 +73,19 @@ Woodward-Lawson designs are checked to approximate the requested pattern shape.
 This project requires numpy and pint. matplotlib is optional and only needed
 for the `--plot` flag; everything else runs without it.
 
-Tested on Python 3.12.
+Tested on Python 3.12 and 3.13.
 
-
-
-Use 'pip install -r requirements.txt' to install the following dependencies:
+Use `pip install -r requirements.txt` to install the pinned, tested versions:
 ```python
-numpy
-pint
-matplotlib   # optional, for --plot only
+numpy==2.5.4
+pint==0.26.2
+matplotlib==3.11.2   # optional, for --plot / --save only
+pytest==9.2.0        # dev: test suite
 ```
 
-For development, also install:
-
-```python 
-pytest
-```
+Installing the package itself (below) only requires `numpy>=2.0` and
+`pint>=0.24`; matplotlib comes with the `plot` extra
+(`pip install "arraycalculator[plot]"`).
 
 
 
@@ -109,9 +107,14 @@ uv pip install dist/arraycalculator-*.whl
 ```
 
 This installs the array modules so they can be imported directly (e.g.
-`from binomial_array import BinomialArray`). The calculator is still run as a
-script -- `python src/array_calculator.py binomial_array -N 6 -f 3e9` -- since
-no console entry point is configured.
+`from binomial_array import BinomialArray`) and adds an `arraycalculator`
+command that takes the same arguments as the script:
+
+```
+arraycalculator binomial_array -N 6 -f 3e9
+# equivalent to
+python src/array_calculator.py binomial_array -N 6 -f 3e9
+```
 
 
 
@@ -152,6 +155,9 @@ ArrayCalculator/
     ├── test_helpers.py        (shared fixtures only; collects no tests)
     ├── test_array_calculator.py (cross-cutting: array factor, CSV, CLI, edge cases)
     ├── test_array_evaluator.py
+    ├── test_figures_of_merit.py (shared directivity / HPBW / sidelobe helpers, plot geometry)
+    ├── test_validation.py     (CLI input validation)
+    ├── test_window_def.py     (--window-def sampling for Hann / Hamming / Blackman)
     ├── test_normalization.py
     ├── test_uniform_array.py
     ├── test_binomial_array.py
@@ -238,9 +244,21 @@ optional arguments:
 
 ### Common arguments
 
-Every subcommand accepts the same base arguments below. The two parametric
-methods (`dolph_tschebyscheff`, `taylor_array`) add a few of their own on top
-of these.
+Every synthesis subcommand accepts the same base arguments below; the
+parametric methods add a few of their own on top of these. `evaluate` takes
+only the output and plotting arguments (`--verbose`, `--csv`, `--plot`,
+`--plot-style`, `--show-elements`, `--save`, `--variable_return`), because its
+geometry CSV defines the array; passing `-N`, `-d`, `--scan`, `-f`, `-u` or
+`--norm` to it is an error.
+
+Inputs are checked up front: `-N` must be at least 2, `-d` and `-f` positive,
+`--scan` within 0..180, `-sll` positive, `-nbar` at least 1 (and at most
+`(N+1)//2` for Villeneuve), `-beta` non-negative, and the Woodward-Lawson
+`--sector` positive with a non-negative `--floor`. Bad values stop with an
+argparse error rather than a crash or a NaN.
+
+`hann_array`, `hamming_array` and `blackman_array` also take
+`--window-def {aperture,symmetric}` (see Examples).
 
 ```
   --help                Show this help message and exit
@@ -265,6 +283,9 @@ of these.
   --norm {edge,center}  Normalize amplitudes to the edge or center element
                         (default center; dolph_tschebyscheff defaults to edge)
 ```
+
+A warning is printed when the pattern has a grating lobe (a second lobe within
+3 dB of the main beam), typically from wide spacing combined with steering.
 
 
 ### CLI vs Scripting Comparison
@@ -406,9 +427,13 @@ Results:
 [*] Amplitudes (raw) = [1.198, 1.852, 2.671, 3.170, 3.170, 2.671, 1.852, 1.198]
 [*] Amplitudes (edge-normalized) = [1.000, 1.546, 2.230, 2.647, 2.647, 2.230, 1.546, 1.000]
 [*] Element spacing d = 0.50 lambda
-[*] Directivity = 7.45
-[*] Directivity = 8.72 dB
+[*] Directivity = 7.17
+[*] Directivity = 8.56 dB
 ```
+
+(At broadside this array reports the Balanis closed form, 8.72 dB. Steered
+off broadside, the closed form no longer applies and the directivity is
+integrated from the pattern.)
 
 **Ordinary endfire: steer to the array axis (use closer spacing)**
 
@@ -425,9 +450,9 @@ Results:
 [*] N = 10
 [*] Amplitudes (normalized) = [1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
 [*] Element spacing d = 0.25 lambda
-[*] HPBW = 34.71 deg
-[*] Directivity = 5
-[*] Directivity = 6.99 dB
+[*] HPBW = 69.42 deg
+[*] Directivity = 10
+[*] Directivity = 10.00 dB
 ```
 
 **Export the radiation pattern to CSV (with steering)**
@@ -446,8 +471,8 @@ Results:
 [*] Sidelobe level = 25.00 dB
 [*] Amplitudes (edge-normalized) = [1.000, 1.546, 2.230, 2.647, 2.647, 2.230, 1.546, 1.000]
 [*] Element spacing d = 0.50 lambda
-[*] Directivity = 7.45
-[*] Directivity = 8.72 dB
+[*] Directivity = 7.17
+[*] Directivity = 8.56 dB
 [*] Pattern CSV generated: pattern.csv
 ```
 
@@ -533,23 +558,20 @@ beam you will generally want closer element spacing (`-d 0.25` or so); at
 `d = lambda/2` the steered beam cannot fully reach the axis without its mirror
 image at `180 - scan` merging into it, which distorts the pattern near endfire.
 
-Two limitations are left to the user to account for, by design -- the calculator
-does not detect or correct them:
+**Directivity is the exact array-factor (isotropic-element) value at any scan
+angle and spacing.** It is integrated from the pattern, so it follows the beam
+to endfire (ordinary endfire comes out near `4 N d / lambda`, about twice
+broadside) and drops correctly when grating lobes appear. The binomial and
+Dolph-Tschebyscheff arrays report their textbook closed forms only at
+`d = lambda/2` broadside, where those forms apply. HPBW is read from the
+pattern; at or near endfire it is the full width of the beam in the plane cut
+(the pattern is mirror-symmetric about the array axis).
 
-1. **Directivity is the array-factor (isotropic-element) value and assumes a
-   broadside-type pattern.** It is reported from the standard broadside
-   expressions, which hold across scan angles for the isotropic-element model
-   *until the beam approaches endfire*. Near `--scan 0` or `--scan 180` the
-   broadside formula no longer applies (ordinary endfire is actually higher, on
-   the order of `4 N d / lambda` for the uniform case), so the printed
-   directivity at or near endfire should not be trusted. The radiation pattern,
-   HPBW, and CSV/plot output remain correct at any scan; only the single
-   directivity figure is model-limited.
-
-2. **Real element patterns are not modeled.** The tool computes the array factor
-   only, treating every element as isotropic. A real element radiates less
-   toward endfire, which in practice reduces scanned directivity. If you need
-   scan-loss or true scanned gain, fold in your element pattern separately.
+**Real element patterns are not modeled** -- this one is left to the user, by
+design. The tool computes the array factor only, treating every element as
+isotropic. A real element radiates less toward endfire, which in practice
+reduces scanned directivity. If you need scan-loss or true scanned gain, fold
+in your element pattern separately.
 
 The Hansen-Woodyard increased-directivity endfire condition is **not** provided
 and is not reachable through `--scan` alone: it adds an extra phase increment
@@ -645,8 +667,18 @@ Woodward-Lawson is different from every other method here: instead of producing 
 pencil beam with controlled sidelobes, it designs the array to *approximate a
 desired pattern shape*. Two target shapes are built in -- `flat_top` (uniform
 amplitude across a sector, zero outside) and `cosecant_squared` (the classic
-radar ground-coverage pattern). The shaped sector is centered on `--scan` and its
-half-width is set by `--sector`.
+radar ground-coverage pattern).
+
+* `flat_top`: the sector is centered on `--scan` and `--sector` is its
+  half-width.
+* `cosecant_squared`: one-sided. Broadside (theta = 90) is treated as the
+  horizon, so a direction's elevation is `90 - theta`. The beam peaks at
+  `--scan`, which must be off broadside, and the amplitude falls as
+  `cos(scan) / cos(theta)` (power ~ csc^2 of elevation) across a fill region
+  `--sector` degrees wide on the side away from the horizon:
+  `[scan - sector, scan]` for `--scan` below 90 (looking up), or
+  `[scan, scan + sector]` above 90 (looking down). The other side of broadside
+  gets only `--floor`.
 
 ```
 usage: array_calculator.py woodward_lawson_array [common args]
@@ -655,12 +687,15 @@ usage: array_calculator.py woodward_lawson_array [common args]
 
   --shape {flat_top,cosecant_squared}
                         Target pattern shape (default flat_top)
-  --sector SECTOR       Half-width of the shaped sector in degrees (default 30)
+  --sector SECTOR       flat_top: half-width of the sector; cosecant_squared:
+                        width of the fill region (degrees, default 30)
   --floor FLOOR         Desired linear amplitude outside the sector (default 0)
 ```
 
-Because the excitations are generally complex, `--verbose` also prints the
-per-element excitation phase. The in-sector ripple is an inherent (Gibbs-like)
+The excitations are generally complex, so the per-element excitation phase is
+always printed, and the CSV export, plot and directivity all use the full
+complex excitation (for a target symmetric about broadside the phases are 0 or
+180 deg). The in-sector ripple is an inherent (Gibbs-like)
 feature of the composing-beam method and decreases as N grows.
 
 ### Evaluating an arbitrary geometry
@@ -674,7 +709,7 @@ with an external optimizer: the optimizer proposes a geometry, the evaluator
 scores it. No optimizer lives in the calculator.
 
 ```
-usage: array_calculator.py evaluate [common args] -g GEOMETRY_CSV
+usage: array_calculator.py evaluate [output/plot args] -g GEOMETRY_CSV
 
   -g, --geometry GEOMETRY_CSV
                         Geometry CSV with columns:
@@ -704,7 +739,11 @@ result = ev.evaluate(positions, amplitudes=None, phases=None)
 
 Directivity here is computed from the pattern integral (valid for non-uniform
 spacing), not the `2 N d / lambda` closed form, which only applies to equally
-spaced arrays.
+spaced arrays. `peak_sidelobe_db` is the highest lobe outside the main beam,
+*including* grating lobes and lobes at 0 or 180 deg, so an optimizer using it as
+a fitness term is penalized for grating lobes (it reaches about 0 dB when one
+is present). The plot (`--plot` / `--save`) draws the pattern of the CSV
+geometry itself.
 
 Each synthesis method is its own subcommand. The examples below show
 representative output; element amplitudes, HPBW, and directivity are printed
@@ -782,7 +821,7 @@ python array_calculator.py taylor_array -N 20 -sll 30 -nbar 6 --verbose
 [*] Amplitudes (raw) = [0.414, 0.468, 0.586, 0.757, 0.945, 1.119, 1.273, 1.403, 1.495, 1.541, 1.541, 1.495, 1.403, 1.273, 1.119, 0.945, 0.757, 0.586, 0.468, 0.414]
 [*] Amplitudes (normalized) = [0.269, 0.304, 0.380, 0.492, 0.613, 0.726, 0.826, 0.910, 0.970, 1.000, 1.000, 0.970, 0.910, 0.826, 0.726, 0.613, 0.492, 0.380, 0.304, 0.269]
 [*] Element spacing d = 0.50 lambda
-[*] HPBW = 6.42 deg
+[*] HPBW = 6.41 deg
 [*] Directivity = 17.17
 [*] Directivity = 12.35 dB
 ```
@@ -801,7 +840,7 @@ python array_calculator.py villeneuve_array -N 20 -sll 30 -nbar 6
 [*] nbar = 6
 [*] Amplitudes (normalized) = [0.266, 0.301, 0.378, 0.490, 0.612, 0.725, 0.826, 0.910, 0.970, 1.000, 1.000, 0.970, 0.910, 0.826, 0.725, 0.612, 0.490, 0.378, 0.301, 0.266]
 [*] Element spacing d = 0.50 lambda
-[*] HPBW = 6.43 deg
+[*] HPBW = 6.42 deg
 [*] Directivity = 17.15
 [*] Directivity = 12.34 dB
 ```
@@ -818,7 +857,7 @@ python array_calculator.py bartlett_array -N 16
 [*] N = 16
 [*] Amplitudes (normalized) = [0.000, 0.143, 0.286, 0.429, 0.571, 0.714, 0.857, 1.000, 1.000, 0.857, 0.714, 0.571, 0.429, 0.286, 0.143, 0.000]
 [*] Element spacing d = 0.50 lambda
-[*] HPBW = 9.82 deg
+[*] HPBW = 9.81 deg
 [*] Directivity = 11.20
 [*] Directivity = 10.49 dB
 ```
@@ -849,15 +888,18 @@ python array_calculator.py woodward_lawson_array -N 20 --shape flat_top --sector
 [*] N = 20
 [*] Target shape = flat_top
 [*] Amplitudes (normalized) = [0.079, 0.081, 0.085, 0.092, 0.103, 0.121, 0.150, 0.205, 0.336, 1.000, 1.000, 0.336, 0.205, 0.150, 0.121, 0.103, 0.092, 0.085, 0.081, 0.079]
+[*] Excitation phase (deg) = [0.000, 0.000, 180.000, 180.000, 0.000, 0.000, 180.000, 180.000, 0.000, 0.000, 0.000, 0.000, 180.000, 180.000, 0.000, 0.000, 180.000, 180.000, 0.000, 0.000]
 [*] Element spacing d = 0.50 lambda
-[*] Directivity = 8.24
-[*] Directivity = 9.16 dB
+[*] Directivity = 2.72
+[*] Directivity = 4.35 dB
 ```
 
 Woodward-Lawson approximates a *shape* rather than a pencil beam; here the
-pattern is held roughly flat across a 60-degree sector and suppressed outside it.
-Use `--shape cosecant_squared` for the radar ground-coverage pattern, and
-`--verbose` to also print the per-element excitation phase.
+pattern is held roughly flat across a 60-degree sector and suppressed outside it
+(hence the low directivity: the beam covers about half the sphere). The
+180-degree phases are essential; an array built from the amplitudes alone gives
+a pencil beam. For the radar ground-coverage pattern use, for example,
+`--shape cosecant_squared --scan 80 --sector 40`.
 
 **Evaluate an arbitrary geometry from a CSV:**
 ```
@@ -867,7 +909,7 @@ python array_calculator.py evaluate -g geometry.csv
 [*] Positions (lambda) = [0.000, 0.500, 1.000, 1.500, 2.000, 2.500, 3.000, 3.500]
 [*] Amplitudes = [1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
 [*] Main beam at = 90.00 deg
-[*] HPBW = 12.81 deg
+[*] HPBW = 12.80 deg
 [*] Peak sidelobe = -12.80 dB
 [*] Directivity = 8
 [*] Directivity = 9.03 dB
@@ -892,7 +934,7 @@ python array_calculator.py blackman_array -N 16
 [*] N = 16
 [*] Amplitudes (normalized) = [0.004, 0.035, 0.113, 0.253, 0.451, 0.678, 0.880, 1.000, 1.000, 0.880, 0.678, 0.451, 0.253, 0.113, 0.035, 0.004]
 [*] Element spacing d = 0.50 lambda
-[*] HPBW = 11.80 deg
+[*] HPBW = 11.79 deg
 [*] Directivity = 9.27
 [*] Directivity = 9.67 dB
 ```
@@ -900,7 +942,25 @@ python array_calculator.py blackman_array -N 16
 The remaining tapers -- `cosine_array`, `cosine_squared_array`, and
 `hann_array` -- take the same arguments and print output in the same form.
 (Cosine-squared and Hann are the same distribution and produce identical
-results; see their module docstrings.)
+results with the default sampling; see their module docstrings.)
+
+**Window sampling for Hann, Hamming and Blackman (`--window-def`).** These
+three tapers are defined on a normalized coordinate `x` and can sample it two
+ways:
+
+* `aperture` (default): `x = n/N`, with `n` centered on the array. This samples
+  a continuous window spanning the full aperture `N d` at the element centers,
+  so the edge elements sit `d/2` inside the window's end and stay excited. It
+  is the usual antenna convention and makes Hann identical to cosine-squared.
+* `symmetric`: `x = n/(N-1)`, the DSP "symmetric" window. The edge elements
+  land on the window's endpoints, so Hann (and, to within 1e-17, Blackman)
+  feeds them at zero: effectively an `(N-2)`-element array, with lower
+  sidelobes and a wider beam than the same `N` in `aperture` mode. Hamming's
+  edges sit on its 0.08 pedestal. Use this to match DSP-style window tables.
+
+```
+python array_calculator.py hann_array -N 16 --window-def symmetric
+```
 
 **Return variables instead of printing** (for use as a library):
 ```
@@ -933,8 +993,11 @@ theta_deg,AF_linear,AF_dB
 ### Matplotlib Visualization
 
 
-The polar view shows the 0-180 deg half-plane mirrored about boresight (the
-beam points up at 90 deg); the rectangular view plots normalized |AF| in dB
+The polar view is a full 360 deg dial: the swept 0-180 deg pattern on the top
+half and its mirror image on the bottom (theta is measured from the array axis,
+which runs left-right, so a broadside beam points both up and down, as it does
+in any plane containing the axis). Angle labels give theta from the axis on
+both halves. The rectangular view plots normalized |AF| in dB
 against theta. When a sidelobe level applies (Dolph, Taylor), it is drawn as a
 dashed reference line.
 
@@ -954,8 +1017,11 @@ python array_calculator.py hamming_array -N 20 --plot --plot-style polar
 python array_calculator.py blackman_array -N 24 --save blackman.png --plot-style rect
 ```
 
-The polar view shows the 0-180 deg half-plane mirrored about boresight (the
-beam points up at 90 deg); the rectangular view plots normalized |AF| in dB
+The polar view is a full 360 deg dial: the swept 0-180 deg pattern on the top
+half and its mirror image on the bottom (theta is measured from the array axis,
+which runs left-right, so a broadside beam points both up and down, as it does
+in any plane containing the axis). Angle labels give theta from the axis on
+both halves. The rectangular view plots normalized |AF| in dB
 against theta. When a sidelobe level applies (Dolph, Taylor), it is drawn as a
 dashed reference line.
 
@@ -1043,15 +1109,23 @@ Coverage includes:
   sidelobe level of each (triangular / Bartlett ~ -26 dB, cosine ~ -23 dB,
   cosine-squared / Hann ~ -31 dB, Hamming ~ -41 dB, Blackman ~ -58 dB)
 * Kaiser: I0 series vs. reference values; sidelobes fall monotonically with beta
-* The Hann / cosine-squared equivalence (identical amplitudes across N)
-* Woodward-Lawson: the realized pattern approximates the requested shape
-  (flat-top holds its sector and drops outside; cosecant-squared is broad)
+* The Hann / cosine-squared equivalence (identical amplitudes across N, in the
+  default `--window-def aperture` mode) and the `symmetric` alternative
+* Woodward-Lawson: the realized and the exported pattern approximate the
+  requested shape (flat-top holds its sector and drops outside; cosecant-squared
+  follows its csc law and is one-sided); steered sectors land on the scan side
+* Shared figures of merit: pattern-integral directivity vs. brute force
+  (including grating lobes and endfire), full endfire HPBW, grating lobes and
+  0/180 deg lobes counted in the peak sidelobe
+* Plots: the evaluator plots its own geometry, element phases wrap to
+  +/-180 deg, and the polar dial draws the mirrored half
 * Evaluator round-trip: a uniform geometry scored by the evaluator matches the
   dedicated UniformArray; phase steers the beam; non-uniform spacing runs cleanly
 * Physical pattern checks: target sidelobe level, equiripple sidelobes,
   no-sidelobe binomial behavior, and beam steering
 * CSV export format (pattern export and geometry import)
 * CLI dispatch, defaults, `--variable_return`, and argument validation
+  (out-of-range inputs, and flags `evaluate` does not use)
 
 Running `pytest` requires `pytest` in addition to the project's `numpy` and
 `pint` dependencies.
